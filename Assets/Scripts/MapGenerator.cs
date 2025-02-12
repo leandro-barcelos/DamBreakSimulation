@@ -1,34 +1,14 @@
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
-using UnityEngine.UI;
 
-[RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
-public class MapGenerator : MonoBehaviour
+public class MapGenerator
 {
-    [Header("Map Elevation")]
-    public Button button;
-    public Texture2D elevationData;
-    [Range(0f, 1f)] public float quality = 1f;
-
-    private MeshFilter meshFilter;
-
-    public void GenerateMap()
-    {
-        meshFilter = GetComponent<MeshFilter>();
-
-        GenerateMesh();
-
-        var cameraOrbit = Camera.main.AddComponent<CameraOrbit>();
-        cameraOrbit.target = gameObject;
-    }
-
-    void GenerateMesh()
+    public static Mesh GenerateMesh(Texture2D elevationData)
     {
         if (elevationData.width != elevationData.height)
         {
             Debug.LogError("Elevation data texture must be square.");
-            return;
+            return null;
         }
 
         Mesh mesh = new() { name = "Map Mesh" };
@@ -42,17 +22,17 @@ public class MapGenerator : MonoBehaviour
 
         // Generate surface mesh
         float maxElevation = 0;
-        float offset = 0.03f * 0.5f * resolution;
+        float offset = 30 * 0.5f * resolution;
         for (var i = 0; i < resolution; i++)
         {
             for (var j = 0; j < resolution; j++)
             {
                 var elevation = elevationData.GetPixel(i, j).r;
                 vertices.Add(new Vector3(
-                    i * 0.03f - offset,
-                    (float)elevation,
-                    j * 0.03f - offset
-                ));
+                    i * 30 - offset,
+                    (float)elevation * 1000,
+                    j * 30 - offset
+                ) / (resolution * 30));
 
                 maxElevation = Mathf.Max(maxElevation, elevation);
 
@@ -91,6 +71,6 @@ public class MapGenerator : MonoBehaviour
         mesh.RecalculateBounds();
         mesh.RecalculateTangents();
 
-        meshFilter.mesh = mesh;
+        return mesh;
     }
 }

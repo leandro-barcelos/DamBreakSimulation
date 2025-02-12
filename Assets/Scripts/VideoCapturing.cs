@@ -1,7 +1,5 @@
 using System;
-using Unity.VisualScripting;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class VideoCapturing : MonoBehaviour
 {
@@ -13,7 +11,6 @@ public class VideoCapturing : MonoBehaviour
     private bool recording;
     private int frameCount;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     public void StartCapture()
     {
         Time.captureFramerate = framerate;
@@ -24,8 +21,7 @@ public class VideoCapturing : MonoBehaviour
         recording = true;
     }
 
-    // Update is called once per frame
-    void Update()
+    private void Update()
     {
         if (Input.GetKeyDown(KeyCode.ScrollLock) && !recording)
         {
