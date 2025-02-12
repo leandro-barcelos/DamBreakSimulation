@@ -21,7 +21,6 @@ public class MapGenerator
         List<Vector2> uvs = new();
 
         // Generate surface mesh
-        float maxElevation = 0;
         float offset = 30 * 0.5f * resolution;
         for (var i = 0; i < resolution; i++)
         {
@@ -33,8 +32,6 @@ public class MapGenerator
                     (float)elevation * 1000,
                     j * 30 - offset
                 ) / (resolution * 30));
-
-                maxElevation = Mathf.Max(maxElevation, elevation);
 
                 uvs.Add(new Vector2((float)i / (resolution - 1), (float)j / (resolution - 1)));
             }
