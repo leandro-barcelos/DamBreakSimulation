@@ -60,7 +60,7 @@ public class Simulation : MonoBehaviour
     public int distanceTextureResoulution = 64;
 
     [Header("Debug Info")]
-    public RenderTexture distanceTexture;
+
 
     [Header("Label")]
     public GameObject startSimulationLabel;
@@ -70,6 +70,9 @@ public class Simulation : MonoBehaviour
     #region Private
 
     private bool runSimulation;
+
+    // Colision
+    private RenderTexture _distanceTexture;
 
     // Particle
     private RenderTexture[] _particlePositionTextures, _particleVelocityTextures;
@@ -133,7 +136,7 @@ public class Simulation : MonoBehaviour
 
     void OnDestroy()
     {
-        distanceTexture?.Release();
+        _distanceTexture?.Release();
         _particleMeshPropertiesBuffer?.Release();
         _particleArgsBuffer?.Release();
         _bucketBuffer?.Release();
@@ -155,7 +158,7 @@ public class Simulation : MonoBehaviour
         var meshRenderer = mapGameObject.AddComponent<MeshRenderer>();
         meshRenderer.material = new Material(Shader.Find("Standard"));
 
-        distanceTexture = GenerateDistanceTexture(mapMeshFilter.mesh);
+        GenerateDistanceTexture(mapMeshFilter.mesh);
 
         InitCameraOrbit(mapGameObject);
     }
@@ -244,7 +247,7 @@ public class Simulation : MonoBehaviour
 
     #region Shader Dispaches
 
-    private RenderTexture GenerateDistanceTexture(Mesh mesh)
+    private void GenerateDistanceTexture(Mesh mesh)
     {
         ComputeShader distanceShader = Resources.Load<ComputeShader>("Distance");
 
@@ -276,8 +279,8 @@ public class Simulation : MonoBehaviour
 
         triangles.Release();
         vertices.Release();
+    }
 
-        return distanceTexture;
     }
 
     private void BucketGeneration()
