@@ -62,6 +62,9 @@ public class Simulation : MonoBehaviour
     [Header("Debug Info")]
     public RenderTexture distanceTexture;
 
+    [Header("Label")]
+    public GameObject startSimulationLabel;
+
     #endregion
 
     #region Private
@@ -110,6 +113,7 @@ public class Simulation : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Return))
         {
             runSimulation = true;
+            startSimulationLabel.SetActive(false);
         }
 
         if (runSimulation)
