@@ -1,0 +1,53 @@
+#define NUM_THREADS 32
+#define MAX_PARTICLES_PER_VOXEL 32
+
+#pragma enable_d3d11_debug_symbols
+
+// Buffers
+Texture2D<float4> _ParticlePositionTexture;
+RWStructuredBuffer<uint> _Bucket;
+
+// Parameters
+float2 _ParticleResolution;
+uint _BucketResolution;
+uint _NumParticles;
+
+#pragma kernel CSMain
+
+[numthreads(NUM_THREADS, NUM_THREADS, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    // Check if we're within texture bounds
+    if (any(id.xy >= uint2(_ParticleResolution)))
+        return;
+
+    uint id_1d = id.y * uint(_ParticleResolution.x) + id.x;
+
+    float3 pos = _ParticlePositionTexture[id.xy].xyz;
+    float3 idx_3d = int3(pos * (_BucketResolution - 1));
+    uint index = idx_3d.x + idx_3d.y * _BucketResolution + idx_3d.z * _BucketResolution * _BucketResolution;
+    index *= MAX_PARTICLES_PER_VOXEL;
+    for (uint j = 0; j < MAX_PARTICLES_PER_VOXEL; j++)
+    {
+        uint original;
+        InterlockedCompareExchange(_Bucket[index + j], _NumParticles, id_1d, original);
+        if(original==_NumParticles) break;
+    }
+}
+
+#pragma kernel ClearBucket
+
+[numthreads(10, 10, 10)]
+void ClearBucket(uint3 id : SV_DispatchThreadID)
+{
+    // Check if we're within texture bounds
+    if (any(id >= _BucketResolution))
+        return;
+
+    uint idx = id.x + id.y * _BucketResolution + id.z * _BucketResolution * _BucketResolution;
+    idx *= MAX_PARTICLES_PER_VOXEL;
+    for (uint j = 0; j < MAX_PARTICLES_PER_VOXEL; j++)
+    {
+        _Bucket[idx + j] = _NumParticles;
+    }
+}

@@ -1,0 +1,60 @@
+#define NUM_THREADS 32
+#define MAX_PARTICLES_PER_VOXEL 32
+#define POW3(x) ((x)*(x)*(x))
+
+static const float PI = 3.14159265358979323846264338327950288;
+
+#pragma enable_d3d11_debug_symbols
+
+// Buffers
+RWTexture2D<float> _ParticleDensityTexture;
+Texture2D<float4> _ParticlePositionTexture;
+StructuredBuffer<uint> _Bucket;
+
+// Parameters
+uint _NumParticles;
+float _ParticleMass;
+float _EffectiveRadius2;
+float _EffectiveRadius9;
+uint _BucketResolution;
+float2 _ParticleResolution;
+
+float W(float3 r){
+    const float c = 315.0/(64.0*PI);
+    float abs_r2 = dot(r,r);
+    float diff_r2 = _EffectiveRadius2-abs_r2;
+    return 0<diff_r2?c*POW3(diff_r2)/_EffectiveRadius9:0.0;
+}
+
+#pragma kernel CSMain
+
+[numthreads(NUM_THREADS, NUM_THREADS, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    // Check if we're within texture bounds
+    if (any(id.xy >= uint2(_ParticleResolution)))
+        return;
+
+    float3 pos_i = _ParticlePositionTexture[id.xy].xyz;
+    float3 idx_3d = int3(pos_i * (_BucketResolution - 1));
+
+    float rho = 0.0;
+    for (int x_offset=-1; x_offset<=1; x_offset++)
+    for (int y_offset=-1; y_offset<=1; y_offset++)
+    for (int z_offset=-1; z_offset<=1; z_offset++){
+        int3 idx_3d_j = idx_3d + int3(x_offset, y_offset, z_offset);
+        if(all(idx_3d_j >= 0) && all((uint3)idx_3d_j < _BucketResolution))
+        {
+            uint bkt_j = idx_3d_j.x + idx_3d_j.y * _BucketResolution + idx_3d_j.z * _BucketResolution * _BucketResolution;
+            bkt_j *= MAX_PARTICLES_PER_VOXEL;
+            for (uint j2 = 0; j2<MAX_PARTICLES_PER_VOXEL; j2++){
+                uint j = _Bucket[bkt_j + j2];
+                if (j == _NumParticles) break;
+                uint2 j_2D = uint2(j % uint(_ParticleResolution.x), j / uint(_ParticleResolution.x));
+                rho += _ParticleMass* W(pos_i - _ParticlePositionTexture[j_2D].xyz);
+            }
+        }
+    }
+
+    _ParticleDensityTexture[id.xy] = rho;
+}

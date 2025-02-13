@@ -473,6 +473,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1c18dfe10fa55e55393a40845ae70401, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  preset: 1
+  particleNumber: 65536
+  bucketResolution: 32
+  damFillRate: 0.8
+  viscosity: 0.01
+  restDensity: 1.5
+  gasConstant: 150
+  stiffnessCoefficient: 5000
+  dampingCoefficient: 10
+  occlusionRange: 150
+  particleRadius: 0.001
+  particleMaterial: {fileID: 2100000, guid: 1b17faf13d458dc4fb016baad9cc9ade, type: 2}
+  renderParticles: 1
+  lowSpeed: 0
+  highSpeed: 0.5
   elevationData: {fileID: 2800000, guid: ff244c42dfa7e5ec5ba446b43a393263, type: 3}
   distanceTextureResoulution: 64
   distanceTexture: {fileID: 0}
@@ -514,7 +529,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: f405da5fcce0047bda37a1b192b58996, type: 2}
+  - {fileID: 2100000, guid: caa4ca7a59aa076d2b5552cc569b39ad, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
