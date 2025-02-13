@@ -266,7 +266,7 @@ public class Simulation : MonoBehaviour
         distanceShader.SetBuffer(0, ShaderIDs.VertexBuffer, vertices);
         distanceShader.SetBuffer(0, ShaderIDs.TriangleBuffer, triangles);
 
-        int threadGroups = Mathf.CeilToInt((float)distanceTextureResoulution / NumThreads);
+        int threadGroups = Mathf.CeilToInt((float)distanceTextureResoulution / 8);
 
         distanceShader.Dispatch(0, threadGroups, threadGroups, threadGroups);
 
