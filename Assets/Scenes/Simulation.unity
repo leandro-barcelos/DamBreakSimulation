@@ -482,6 +482,8 @@ MonoBehaviour:
   gasConstant: 150
   stiffnessCoefficient: 5000
   dampingCoefficient: 10
+  wallFillRate: 0.8
+  wallWeightSamples: 100
   occlusionRange: 150
   particleRadius: 0.001
   particleMaterial: {fileID: 2100000, guid: 1b17faf13d458dc4fb016baad9cc9ade, type: 2}

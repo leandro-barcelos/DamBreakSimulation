@@ -35,4 +35,8 @@ public class ShaderIDs
     public static readonly int HighSpeed = Shader.PropertyToID("_HighSpeed");
     public static readonly int LowSpeed = Shader.PropertyToID("_LowSpeed");
     public static readonly int DamFillRate = Shader.PropertyToID("_DamFillRate");
+    public static readonly int WallWeightSamples = Shader.PropertyToID("_WallWeightSamples");
+    public static readonly int WallParticlesCount = Shader.PropertyToID("_WallParticlesCount");
+    public static readonly int WallWeightTexture = Shader.PropertyToID("_WallWeightTexture");
+    public static readonly int WallParticles = Shader.PropertyToID("_WallParticles");
 }

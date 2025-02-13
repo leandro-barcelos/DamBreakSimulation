@@ -44,6 +44,8 @@ public class Simulation : MonoBehaviour
     [Range(1f, 5000f)] public float gasConstant = 150.0f;
     [Range(1000f, 10000f)] public float stiffnessCoefficient = 5000.0f;
     [Range(1f, 50f)] public float dampingCoefficient = 10.0f;
+    [Range(0.01f, 1f)] public float wallFillRate;
+    [Range(1, 1024)] public int wallWeightSamples = 100;
 
     [Header("Rendering")]
     public float occlusionRange;
@@ -73,6 +75,7 @@ public class Simulation : MonoBehaviour
 
     // Colision
     private RenderTexture _distanceTexture;
+    private RenderTexture _wallWeightTexture;
 
     // Particle
     private RenderTexture[] _particlePositionTextures, _particleVelocityTextures;
@@ -137,6 +140,7 @@ public class Simulation : MonoBehaviour
     void OnDestroy()
     {
         _distanceTexture?.Release();
+        _wallWeightTexture?.Release();
         _particleMeshPropertiesBuffer?.Release();
         _particleArgsBuffer?.Release();
         _bucketBuffer?.Release();
@@ -159,6 +163,7 @@ public class Simulation : MonoBehaviour
         meshRenderer.material = new Material(Shader.Find("Standard"));
 
         GenerateDistanceTexture(mapMeshFilter.mesh);
+        GenerateWallWeightTexture();
 
         InitCameraOrbit(mapGameObject);
     }
@@ -243,6 +248,46 @@ public class Simulation : MonoBehaviour
         _bucketBuffer = new ComputeBuffer(totalBucketSize, sizeof(uint));
     }
 
+    private Vector3[] InitializeWallParticles()
+    {
+        var particlePerDim = Mathf.CeilToInt(Mathf.Pow(particleNumber / wallFillRate, 1f / 3f) * _effectiveRadius);
+
+        int xSize = particlePerDim * 2;
+        int ySize = particlePerDim;
+        int zSize = particlePerDim * 2;
+
+        var minPos = new Vector3(
+            -_effectiveRadius,
+            -_effectiveRadius * 0.5f,
+            -_effectiveRadius
+        );
+
+        var maxPos = new Vector3(
+            _effectiveRadius,
+            0,
+            _effectiveRadius
+        );
+
+        Vector3[] wallParticles = new Vector3[xSize * ySize * zSize];
+
+        int index = 0;
+        for (int x = 0; x < xSize; x++)
+        {
+            for (int y = 0; y < ySize; y++)
+            {
+                for (int z = 0; z < zSize; z++)
+                {
+                    float xPos = Mathf.Lerp(minPos.x, maxPos.x, (float)x / (xSize - 1));
+                    float yPos = Mathf.Lerp(minPos.y, maxPos.y, (float)y / (ySize - 1));
+                    float zPos = Mathf.Lerp(minPos.z, maxPos.z, (float)z / (zSize - 1));
+                    wallParticles[index++] = new Vector3(xPos, yPos, zPos);
+                }
+            }
+        }
+
+        return wallParticles;
+    }
+
     #endregion
 
     #region Shader Dispaches
@@ -281,6 +326,35 @@ public class Simulation : MonoBehaviour
         vertices.Release();
     }
 
+    private void GenerateWallWeightTexture()
+    {
+        ComputeShader wallWeightShader = Resources.Load<ComputeShader>("WallWeight");
+
+        RenderTexture wallWeightTexture = new(wallWeightSamples, 1, 0, RenderTextureFormat.RFloat)
+        {
+            dimension = TextureDimension.Tex2D,
+            enableRandomWrite = true
+        };
+        wallWeightTexture.Create();
+
+        Vector3[] wallParticles = InitializeWallParticles();
+        var wallParticlesBuffer = new ComputeBuffer(wallParticles.Length, sizeof(float) * 3);
+        wallParticlesBuffer.SetData(wallParticles);
+
+        wallWeightShader.SetInt(ShaderIDs.WallWeightSamples, wallWeightSamples);
+        wallWeightShader.SetInt(ShaderIDs.WallParticlesCount, wallParticles.Length);
+        wallWeightShader.SetFloat(ShaderIDs.EffectiveRadius, _effectiveRadius);
+        wallWeightShader.SetFloat(ShaderIDs.EffectiveRadius2, _effectiveRadius * _effectiveRadius);
+        wallWeightShader.SetFloat(ShaderIDs.EffectiveRadius9, Mathf.Pow(_effectiveRadius, 9));
+
+        wallWeightShader.SetTexture(0, ShaderIDs.WallWeightTexture, wallWeightTexture);
+        wallWeightShader.SetBuffer(0, ShaderIDs.WallParticles, wallParticlesBuffer);
+
+        int threadGroups = Mathf.CeilToInt((float)wallWeightSamples / NumThreads);
+
+        wallWeightShader.Dispatch(0, threadGroups, 1, 1);
+
+        wallParticlesBuffer.Release();
     }
 
     private void BucketGeneration()
