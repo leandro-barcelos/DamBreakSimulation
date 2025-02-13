@@ -32,7 +32,7 @@ public class VideoCapturing : MonoBehaviour
         {
             if (frameCount < framerate * recordingLength)
             {
-                string filename = string.Format("{0}/{1:D04}", folder, frameCount);
+                string filename = string.Format("{0}/{1:D04}.png", folder, frameCount);
 
                 ScreenCapture.CaptureScreenshot(filename);
 
