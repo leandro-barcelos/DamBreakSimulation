@@ -296,13 +296,13 @@ public class Simulation : MonoBehaviour
     {
         ComputeShader distanceShader = Resources.Load<ComputeShader>("Distance");
 
-        RenderTexture distanceTexture = new(distanceTextureResoulution, distanceTextureResoulution, 0, RenderTextureFormat.RFloat)
+        _distanceTexture = new(distanceTextureResoulution, distanceTextureResoulution, 0, RenderTextureFormat.RFloat)
         {
             dimension = TextureDimension.Tex3D,
             volumeDepth = distanceTextureResoulution,
             enableRandomWrite = true
         };
-        distanceTexture.Create();
+        _distanceTexture.Create();
 
         int triangleCount = mesh.triangles.Length;
         ComputeBuffer triangles = new(triangleCount, sizeof(int));
@@ -314,7 +314,7 @@ public class Simulation : MonoBehaviour
         distanceShader.SetInt(ShaderIDs.GridResolution, distanceTextureResoulution);
         distanceShader.SetInt(ShaderIDs.TriangleCount, triangleCount);
 
-        distanceShader.SetTexture(0, ShaderIDs.DistanceTexture, distanceTexture);
+        distanceShader.SetTexture(0, ShaderIDs.DistanceTexture, _distanceTexture);
         distanceShader.SetBuffer(0, ShaderIDs.VertexBuffer, vertices);
         distanceShader.SetBuffer(0, ShaderIDs.TriangleBuffer, triangles);
 
@@ -330,12 +330,12 @@ public class Simulation : MonoBehaviour
     {
         ComputeShader wallWeightShader = Resources.Load<ComputeShader>("WallWeight");
 
-        RenderTexture wallWeightTexture = new(wallWeightSamples, 1, 0, RenderTextureFormat.RFloat)
+        _wallWeightTexture = new(wallWeightSamples, 1, 0, RenderTextureFormat.RFloat)
         {
             dimension = TextureDimension.Tex2D,
             enableRandomWrite = true
         };
-        wallWeightTexture.Create();
+        _wallWeightTexture.Create();
 
         Vector3[] wallParticles = InitializeWallParticles();
         var wallParticlesBuffer = new ComputeBuffer(wallParticles.Length, sizeof(float) * 3);
@@ -347,7 +347,7 @@ public class Simulation : MonoBehaviour
         wallWeightShader.SetFloat(ShaderIDs.EffectiveRadius2, _effectiveRadius * _effectiveRadius);
         wallWeightShader.SetFloat(ShaderIDs.EffectiveRadius9, Mathf.Pow(_effectiveRadius, 9));
 
-        wallWeightShader.SetTexture(0, ShaderIDs.WallWeightTexture, wallWeightTexture);
+        wallWeightShader.SetTexture(0, ShaderIDs.WallWeightTexture, _wallWeightTexture);
         wallWeightShader.SetBuffer(0, ShaderIDs.WallParticles, wallParticlesBuffer);
 
         int threadGroups = Mathf.CeilToInt((float)wallWeightSamples / NumThreads);
