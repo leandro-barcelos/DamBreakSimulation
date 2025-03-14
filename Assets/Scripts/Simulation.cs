@@ -42,10 +42,8 @@ public class Simulation : MonoBehaviour
     [Range(0f, 0.1f)] public float viscosity = 0.01f;
     [Range(0f, 5f)] public float restDensity = 1.5f;
     [Range(1f, 5000f)] public float gasConstant = 150.0f;
-    [Range(1000f, 10000f)] public float stiffnessCoefficient = 5000.0f;
+    [Range(0f, 10000f)] public float stiffnessCoefficient = 5000.0f;
     [Range(1f, 50f)] public float dampingCoefficient = 10.0f;
-    [Range(0.01f, 1f)] public float wallFillRate;
-    [Range(1, 1024)] public int wallWeightSamples = 100;
 
     [Header("Rendering")]
     public float occlusionRange;
@@ -56,7 +54,7 @@ public class Simulation : MonoBehaviour
     [Range(0f, 1000f)] public float highSpeed;
 
     [Header("Map Generation")]
-    public Texture2D elevationData;
+    public Texture2D elevationTexture;
 
     [Header("Distance Calculation")]
     public int distanceTextureResoulution = 64;
@@ -72,10 +70,6 @@ public class Simulation : MonoBehaviour
     #region Private
 
     private bool runSimulation;
-
-    // Colision
-    private RenderTexture _distanceTexture;
-    private RenderTexture _wallWeightTexture;
 
     // Particle
     private RenderTexture[] _particlePositionTextures, _particleVelocityTextures;
@@ -139,8 +133,6 @@ public class Simulation : MonoBehaviour
 
     void OnDestroy()
     {
-        _distanceTexture?.Release();
-        _wallWeightTexture?.Release();
         _particleMeshPropertiesBuffer?.Release();
         _particleArgsBuffer?.Release();
         _bucketBuffer?.Release();
@@ -158,12 +150,9 @@ public class Simulation : MonoBehaviour
     {
         GameObject mapGameObject = new("Map");
         var mapMeshFilter = mapGameObject.AddComponent<MeshFilter>();
-        mapMeshFilter.mesh = MapGenerator.GenerateMesh(elevationData);
+        mapMeshFilter.mesh = MapGenerator.GenerateMesh(elevationTexture);
         var meshRenderer = mapGameObject.AddComponent<MeshRenderer>();
         meshRenderer.material = new Material(Shader.Find("Standard"));
-
-        GenerateDistanceTexture(mapMeshFilter.mesh);
-        GenerateWallWeightTexture();
 
         InitCameraOrbit(mapGameObject);
     }
@@ -227,11 +216,15 @@ public class Simulation : MonoBehaviour
 
         _particleMass = damFillRate / particleNumber;
 
-        // Init  Positions
+        // Init Positions
         _initParticlesShader.SetInt(ShaderIDs.ParticleResolution, _particleTextureResolution);
         _initParticlesShader.SetFloat(ShaderIDs.DamFillRate, damFillRate);
-
         _initParticlesShader.SetTexture(preset, ShaderIDs.ParticlePositionTexture, _particlePositionTextures[Read]);
+        _initParticlesShader.SetTexture(preset, ShaderIDs.ElevationTexture, elevationTexture);
+        _initParticlesShader.SetInt(ShaderIDs.ElevationTextureResolution, elevationTexture.height);
+
+        // Add a small offset to avoid particles getting stuck in the corners
+        _initParticlesShader.SetFloat(ShaderIDs.PositionOffset, 0.001f);
 
         _initParticlesShader.Dispatch(preset, _threadGroups, _threadGroups, 1);
 
@@ -248,115 +241,9 @@ public class Simulation : MonoBehaviour
         _bucketBuffer = new ComputeBuffer(totalBucketSize, sizeof(uint));
     }
 
-    private Vector3[] InitializeWallParticles()
-    {
-        var particlePerDim = Mathf.CeilToInt(Mathf.Pow(particleNumber / wallFillRate, 1f / 3f) * _effectiveRadius);
-
-        int xSize = particlePerDim * 2;
-        int ySize = particlePerDim;
-        int zSize = particlePerDim * 2;
-
-        var minPos = new Vector3(
-            -_effectiveRadius,
-            -_effectiveRadius * 0.5f,
-            -_effectiveRadius
-        );
-
-        var maxPos = new Vector3(
-            _effectiveRadius,
-            0,
-            _effectiveRadius
-        );
-
-        Vector3[] wallParticles = new Vector3[xSize * ySize * zSize];
-
-        int index = 0;
-        for (int x = 0; x < xSize; x++)
-        {
-            for (int y = 0; y < ySize; y++)
-            {
-                for (int z = 0; z < zSize; z++)
-                {
-                    float xPos = Mathf.Lerp(minPos.x, maxPos.x, (float)x / (xSize - 1));
-                    float yPos = Mathf.Lerp(minPos.y, maxPos.y, (float)y / (ySize - 1));
-                    float zPos = Mathf.Lerp(minPos.z, maxPos.z, (float)z / (zSize - 1));
-                    wallParticles[index++] = new Vector3(xPos, yPos, zPos);
-                }
-            }
-        }
-
-        return wallParticles;
-    }
-
     #endregion
 
     #region Shader Dispaches
-
-    private void GenerateDistanceTexture(Mesh mesh)
-    {
-        ComputeShader distanceShader = Resources.Load<ComputeShader>("Distance");
-
-        _distanceTexture = new(distanceTextureResoulution, distanceTextureResoulution, 0, RenderTextureFormat.RFloat)
-        {
-            dimension = TextureDimension.Tex3D,
-            volumeDepth = distanceTextureResoulution,
-            enableRandomWrite = true
-        };
-        _distanceTexture.Create();
-
-        int triangleCount = mesh.triangles.Length;
-        ComputeBuffer triangles = new(triangleCount, sizeof(int));
-        triangles.SetData(mesh.triangles);
-
-        ComputeBuffer vertices = new(mesh.vertexCount, sizeof(float) * 3);
-        vertices.SetData(mesh.vertices);
-
-        distanceShader.SetInt(ShaderIDs.GridResolution, distanceTextureResoulution);
-        distanceShader.SetInt(ShaderIDs.TriangleCount, triangleCount);
-
-        distanceShader.SetTexture(0, ShaderIDs.DistanceTexture, _distanceTexture);
-        distanceShader.SetBuffer(0, ShaderIDs.VertexBuffer, vertices);
-        distanceShader.SetBuffer(0, ShaderIDs.TriangleBuffer, triangles);
-
-        int threadGroups = Mathf.CeilToInt((float)distanceTextureResoulution / 8);
-
-        distanceShader.Dispatch(0, threadGroups, threadGroups, threadGroups);
-
-        triangles.Release();
-        vertices.Release();
-    }
-
-    private void GenerateWallWeightTexture()
-    {
-        ComputeShader wallWeightShader = Resources.Load<ComputeShader>("WallWeight");
-
-        _wallWeightTexture = new(wallWeightSamples, 1, 0, RenderTextureFormat.RFloat)
-        {
-            dimension = TextureDimension.Tex2D,
-            enableRandomWrite = true
-        };
-        _wallWeightTexture.Create();
-
-        Vector3[] wallParticles = InitializeWallParticles();
-        var wallParticlesBuffer = new ComputeBuffer(wallParticles.Length, sizeof(float) * 3);
-        wallParticlesBuffer.SetData(wallParticles);
-
-        wallWeightShader.SetInt(ShaderIDs.WallWeightSamples, wallWeightSamples);
-        wallWeightShader.SetInt(ShaderIDs.WallParticlesCount, wallParticles.Length);
-        wallWeightShader.SetFloat(ShaderIDs.EffectiveRadius, _effectiveRadius);
-        wallWeightShader.SetFloat(ShaderIDs.EffectiveRadius2, _effectiveRadius * _effectiveRadius);
-        wallWeightShader.SetFloat(ShaderIDs.EffectiveRadius9, Mathf.Pow(_effectiveRadius, 9));
-
-        wallWeightShader.SetTexture(0, ShaderIDs.WallWeightTexture, _wallWeightTexture);
-        wallWeightShader.SetBuffer(0, ShaderIDs.WallParticles, wallParticlesBuffer);
-
-        int threadGroups = Mathf.CeilToInt((float)wallWeightSamples / NumThreads);
-
-        wallWeightShader.Dispatch(0, threadGroups, 1, 1);
-
-        wallParticlesBuffer.Release();
-    }
-
     private void BucketGeneration()
     {
         // Set shader parameters
@@ -404,6 +291,7 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetTexture(0, ShaderIDs.ParticlePositionTexture, _particlePositionTextures[Read]);
         _velPosShader.SetTexture(0, ShaderIDs.ParticleVelocityTexture, _particleVelocityTextures[Read]);
         _velPosShader.SetTexture(0, ShaderIDs.ParticleDensityTexture, _particleDensityTexture);
+        _velPosShader.SetTexture(0, ShaderIDs.ElevationTexture, elevationTexture);
         _velPosShader.SetBuffer(0, ShaderIDs.Bucket, _bucketBuffer);
 
         _velPosShader.SetInt(ShaderIDs.NumParticles, particleNumber);
@@ -418,6 +306,7 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetFloat(ShaderIDs.StiffnessCoeff, stiffnessCoefficient);
         _velPosShader.SetFloat(ShaderIDs.DampingCoeff, dampingCoefficient);
         _velPosShader.SetVector(ShaderIDs.ParticleResolution, new Vector2(_particleTextureResolution, _particleTextureResolution));
+        _velPosShader.SetFloat(ShaderIDs.ElevationTextureResolution, elevationTexture.height);
 
         _velPosShader.Dispatch(0, _threadGroups, _threadGroups, 1);
 

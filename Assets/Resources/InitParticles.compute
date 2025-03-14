@@ -3,9 +3,21 @@
 #include "noiseSimplex.cginc"
 
 RWTexture2D<float4> _ParticlePositionTexture;
+Texture2D<float> _ElevationTexture;
+SamplerState sampler_ElevationTexture;
 
 int _ParticleResolution;
 float _DamFillRate;
+uint _ElevationTextureResolution;
+
+float get_elevation(float2 uv) 
+{
+    float elevation = _ElevationTexture.SampleLevel(sampler_ElevationTexture, uv, 0);
+
+    float offset = 30 * 0.05 * _ElevationTextureResolution;
+
+    return elevation * 1000 / (_ElevationTextureResolution * 30);
+}
 
 #pragma kernel Preset1
 
@@ -36,6 +48,10 @@ void Preset1 (uint3 id : SV_DispatchThreadID)
 
     pos += snoise(pos + i) * particleCubeSize;
     pos.w = 1.0;
+
+    // Ensure particles are spawned above the map
+    float elevation = get_elevation(pos.xz);
+    pos.y = max(pos.y, elevation + particleCubeSize / 2.0);
 
     _ParticlePositionTexture[id.xy] = pos;
 }
@@ -70,6 +86,10 @@ void Preset2 (uint3 id : SV_DispatchThreadID)
     pos += snoise(pos + i) * particleCubeSize;
     pos.w = 1.0;
 
+    // Ensure particles are spawned above the map
+    float elevation = get_elevation(pos.xz);
+    pos.y = max(pos.y, elevation + particleCubeSize / 2.0);
+
     _ParticlePositionTexture[id.xy] = pos;
 }
 
@@ -102,6 +122,10 @@ void Preset3 (uint3 id : SV_DispatchThreadID)
 
     pos += snoise(pos + i) * particleCubeSize;
     pos.w = 1.0;
+
+    // Ensure particles are spawned above the map
+    float elevation = get_elevation(pos.xz);
+    pos.y = max(pos.y, elevation + particleCubeSize / 2.0);
 
     _ParticlePositionTexture[id.xy] = pos;
 }
