@@ -474,14 +474,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   preset: 1
-  particleNumber: 65536
+  particleNumber: 2048
   bucketResolution: 32
   damFillRate: 0.8
+  totalVolume: 0.000058796297
   viscosity: 0.01
-  restDensity: 1.5
+  restDensity: 4.9
   gasConstant: 150
   stiffnessCoefficient: 5000
   dampingCoefficient: 10
+  frictionCoefficient: 0.3
   occlusionRange: 150
   particleRadius: 0.005
   particleMaterial: {fileID: 2100000, guid: 1b17faf13d458dc4fb016baad9cc9ade, type: 2}

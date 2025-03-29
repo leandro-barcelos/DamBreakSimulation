@@ -54,7 +54,7 @@ public class Simulation : MonoBehaviour
     [Range(0f, 1000f)] public float highSpeed;
 
     [Header("Map Generation")]
-    public Texture2D elevationTexture;
+    public GameObject mapGameObject;
 
     [Header("Distance Calculation")]
     public int distanceTextureResoulution = 64;
@@ -68,8 +68,6 @@ public class Simulation : MonoBehaviour
     #endregion
 
     #region Private
-
-    private bool runSimulation;
 
     // Particle
     private RenderTexture[] _particlePositionTextures, _particleVelocityTextures;
@@ -90,14 +88,22 @@ public class Simulation : MonoBehaviour
     private ComputeShader _bucketShader, _clearShader, _densityShader, _velPosShader, _updateMeshPropertiesShader, _initParticlesShader;
     private int _threadGroups;
 
+    //Map
+    private LoadMap mapLoader;
+
     #endregion
 
     #region Unity Functions
 
     void Start()
     {
+        mapLoader = mapGameObject.GetComponent<LoadMap>();
+
+        var meters = mapLoader.elevationTexture.width * 30f;
         particleNumber = Mathf.NextPowerOfTwo(particleNumber);
         _particleTextureResolution = (int)Mathf.Sqrt(particleNumber);
+
+        InitCameraOrbit(mapGameObject);
 
         InitShaders();
 
@@ -110,22 +116,13 @@ public class Simulation : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Return))
-        {
-            runSimulation = true;
-            startSimulationLabel.SetActive(false);
-        }
+        BucketGeneration();
+        DensityCalculation();
 
-        if (runSimulation)
-        {
-            BucketGeneration();
-            DensityCalculation();
+        for (var i = 0; i < 5; i++)
+            UpdateVelocityAndPosition(Time.deltaTime / 25);
 
-            for (var i = 0; i < 5; i++)
-                UpdateVelocityAndPosition(Time.deltaTime / 25);
-
-            UpdateMeshProperties();
-        }
+        UpdateMeshProperties();
 
         if (renderParticles)
             Graphics.DrawMeshInstancedIndirect(_particleMesh, 0, particleMaterial, _bounds, _particleArgsBuffer);
@@ -146,17 +143,6 @@ public class Simulation : MonoBehaviour
     #endregion
 
     #region Initializations
-    public void InitMap()
-    {
-        GameObject mapGameObject = new("Map");
-        var mapMeshFilter = mapGameObject.AddComponent<MeshFilter>();
-        mapMeshFilter.mesh = MapGenerator.GenerateMesh(elevationTexture);
-        var meshRenderer = mapGameObject.AddComponent<MeshRenderer>();
-        meshRenderer.material = new Material(Shader.Find("Standard"));
-
-        InitCameraOrbit(mapGameObject);
-    }
-
     private void InitCameraOrbit(GameObject target)
     {
         var cameraOrbit = Camera.main.AddComponent<CameraOrbit>();
@@ -220,8 +206,8 @@ public class Simulation : MonoBehaviour
         _initParticlesShader.SetInt(ShaderIDs.ParticleResolution, _particleTextureResolution);
         _initParticlesShader.SetFloat(ShaderIDs.DamFillRate, damFillRate);
         _initParticlesShader.SetTexture(preset, ShaderIDs.ParticlePositionTexture, _particlePositionTextures[Read]);
-        _initParticlesShader.SetTexture(preset, ShaderIDs.ElevationTexture, elevationTexture);
-        _initParticlesShader.SetInt(ShaderIDs.ElevationTextureResolution, elevationTexture.height);
+        _initParticlesShader.SetTexture(preset, ShaderIDs.ElevationTexture, mapLoader.elevationTexture);
+        _initParticlesShader.SetInt(ShaderIDs.ElevationTextureResolution, mapLoader.elevationTexture.height);
 
         // Add a small offset to avoid particles getting stuck in the corners
         _initParticlesShader.SetFloat(ShaderIDs.PositionOffset, 0.001f);
@@ -291,7 +277,7 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetTexture(0, ShaderIDs.ParticlePositionTexture, _particlePositionTextures[Read]);
         _velPosShader.SetTexture(0, ShaderIDs.ParticleVelocityTexture, _particleVelocityTextures[Read]);
         _velPosShader.SetTexture(0, ShaderIDs.ParticleDensityTexture, _particleDensityTexture);
-        _velPosShader.SetTexture(0, ShaderIDs.ElevationTexture, elevationTexture);
+        _velPosShader.SetTexture(0, ShaderIDs.ElevationTexture, mapLoader.elevationTexture);
         _velPosShader.SetBuffer(0, ShaderIDs.Bucket, _bucketBuffer);
 
         _velPosShader.SetInt(ShaderIDs.NumParticles, particleNumber);
@@ -306,7 +292,7 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetFloat(ShaderIDs.StiffnessCoeff, stiffnessCoefficient);
         _velPosShader.SetFloat(ShaderIDs.DampingCoeff, dampingCoefficient);
         _velPosShader.SetVector(ShaderIDs.ParticleResolution, new Vector2(_particleTextureResolution, _particleTextureResolution));
-        _velPosShader.SetFloat(ShaderIDs.ElevationTextureResolution, elevationTexture.height);
+        _velPosShader.SetFloat(ShaderIDs.ElevationTextureResolution, mapLoader.elevationTexture.height);
 
         _velPosShader.Dispatch(0, _threadGroups, _threadGroups, 1);
 

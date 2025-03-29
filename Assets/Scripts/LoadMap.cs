@@ -1,19 +1,29 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class MapGenerator
+[RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
+public class LoadMap : MonoBehaviour
 {
-    public static Mesh GenerateMesh(Texture2D elevationData)
+    public Texture2D elevationTexture;
+    public Material mapMaterial;
+
+    void OnEnable()
     {
-        if (elevationData.width != elevationData.height)
+        GetComponent<MeshRenderer>().material = mapMaterial;
+        GenerateMesh();
+    }
+
+    private void GenerateMesh()
+    {
+        if (elevationTexture.width != elevationTexture.height)
         {
-            Debug.LogError("Elevation data texture must be square.");
-            return null;
+            Debug.LogError("Elevation texture must be square.");
+            return;
         }
 
         Mesh mesh = new() { name = "Map Mesh" };
 
-        var resolution = Mathf.Max(elevationData.height, elevationData.width);
+        var resolution = Mathf.Max(elevationTexture.height, elevationTexture.width);
 
         // Initialize arrays
         List<Vector3> vertices = new();
@@ -26,7 +36,7 @@ public class MapGenerator
         {
             for (var j = 0; j < resolution; j++)
             {
-                var elevation = elevationData.GetPixel(i, j).r;
+                var elevation = elevationTexture.GetPixel(i, j).r;
                 vertices.Add(new Vector3(
                     i * 30 - offset,
                     (float)elevation * 1000,
@@ -68,6 +78,6 @@ public class MapGenerator
         mesh.RecalculateBounds();
         mesh.RecalculateTangents();
 
-        return mesh;
+        GetComponent<MeshFilter>().mesh = mesh;
     }
 }
