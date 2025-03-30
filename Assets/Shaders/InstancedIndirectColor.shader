@@ -1,6 +1,16 @@
 Shader "Custom/InstancedIndirectColor" {
+    Properties {
+        // Add this to enable transparency
+        [Enum(UnityEngine.Rendering.BlendMode)] _SrcBlend("Source Blend", Float) = 5 // SrcAlpha
+        [Enum(UnityEngine.Rendering.BlendMode)] _DstBlend("Destination Blend", Float) = 10 // OneMinusSrcAlpha
+    }
+    
     SubShader {
-        Tags { "RenderType" = "Opaque" }
+        Tags { "RenderType" = "Transparent" "Queue" = "Transparent" }
+        
+        // Enable alpha blending
+        Blend [_SrcBlend] [_DstBlend]
+        ZWrite Off
 
         Pass {
             CGPROGRAM
@@ -37,6 +47,8 @@ Shader "Custom/InstancedIndirectColor" {
             }
 
             fixed4 frag(v2f i) : SV_Target {
+                // Early discard if alpha is 0
+                clip(i.color.a - 0.001); // Discard pixels with alpha less than 0.001
                 return i.color;
             }
 

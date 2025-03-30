@@ -34,4 +34,8 @@ public class ShaderIDs
     public static readonly int Min = Shader.PropertyToID("_Min");
     public static readonly int MaxElevation = Shader.PropertyToID("_MaxElevation");
     public static readonly int MinElevation = Shader.PropertyToID("_MinElevation");
+    public static readonly int WallParticlePositionTexture = Shader.PropertyToID("_WallParticlePositionTexture");
+    public static readonly int WallParticleCount = Shader.PropertyToID("_WallParticleCount");
+    public static readonly int WallParticleResolution = Shader.PropertyToID("_WallParticleResolution");
+    public static readonly int IsVisible = Shader.PropertyToID("_IsVisible");
 }

@@ -8,13 +8,17 @@ struct MeshProperties {
 RWStructuredBuffer<MeshProperties> _Properties;
 Texture2D<float4> _FluidParticlePositionTexture;
 Texture2D<float4> _FluidParticleVelocityTexture;
+Texture2D<float4> _WallParticlePositionTexture;
 
 uint _FluidParticleCount;
+uint _WallParticleCount;
 float _LowSpeed;
 float _HighSpeed;
 float2 _FluidParticleResolution;
+float2 _WallParticleResolution;
 float3 _ParticleScale;
 float4x4 _SimTRS;
+bool _IsVisible;
 
 #pragma kernel FluidParticles
 
@@ -65,4 +69,57 @@ void FluidParticles (uint3 id : SV_DispatchThreadID)
     // Set color based on speed
     float t = saturate((speed - _LowSpeed) / (_HighSpeed - _LowSpeed));
     _Properties[id_1d].color = lerp(float4(0, 0, 1, 1), float4(1, 0, 0, 1), t);
+}
+
+#pragma kernel WallParticles
+
+[numthreads(NUM_THREADS, NUM_THREADS, 1)]
+void WallParticles (uint3 id : SV_DispatchThreadID)
+{
+    // Check if we're within texture bounds
+    if (any(id.xy >= uint2(_WallParticleResolution)))
+        return;
+
+    uint id_1d = id.y * uint(_WallParticleResolution.x) + id.x;
+
+    if (id_1d >= _WallParticleCount)
+        return;
+
+    id_1d += _FluidParticleCount;
+
+    // Sample position and density
+    float4 position = _WallParticlePositionTexture[id.xy];
+
+    // Extract simulation area scale (diagonal elements of _SimTRS)
+    float3 simScale = float3(_SimTRS._m00, _SimTRS._m11, _SimTRS._m22);
+    
+    // Extract simulation area position (translation component from last column of _SimTRS)
+    float3 simPosition = float3(_SimTRS._m03, _SimTRS._m13, _SimTRS._m23);
+    
+    // Scale particle position and adjust for centered simulation area
+    float3 worldPos = position.xyz * simScale - (simScale * 0.5);
+    
+    // Create particle scale matrix
+    float4x4 scale = float4x4(
+        _ParticleScale.x, 0, 0, 0,
+        0, _ParticleScale.y, 0, 0,
+        0, 0, _ParticleScale.z, 0,
+        0, 0, 0, 1
+    );
+
+    // Create translation matrix
+    float4x4 translation = float4x4(
+        1, 0, 0, worldPos.x,
+        0, 1, 0, worldPos.y,
+        0, 0, 1, worldPos.z,
+        0, 0, 0, 1
+    );
+
+    // Combine matrices
+    _Properties[id_1d].mat = mul(translation, scale);
+
+    if (_IsVisible)
+        _Properties[id_1d].color = float4(0.0, 1.0, 0.0, 1.0);
+    else
+        _Properties[id_1d].color = float4(0.0, 0.0, 0.0, 0.0);
 }

@@ -18,9 +18,17 @@ public class LoadMap : MonoBehaviour
         transform.localScale = new Vector3(elevationTexture.width, elevationTexture.width, elevationTexture.height) * scale;
     }
 
+    public float SampleElevation(int x, int y)
+    {
+        return minElevation + elevationTexture.GetPixel(x, y).r * (maxElevation - minElevation);
+    }
+
     public float SampleElevation(float u, float v)
     {
-        return minElevation + elevationTexture.GetPixelBilinear(u, v).r * (maxElevation - minElevation);
+        int x = Mathf.FloorToInt(u * elevationTexture.width);
+        int y = Mathf.FloorToInt(v * elevationTexture.height);
+
+        return minElevation + elevationTexture.GetPixel(x, y).r * (maxElevation - minElevation);
     }
 
     private void GenerateMesh()
@@ -48,7 +56,7 @@ public class LoadMap : MonoBehaviour
             {
                 vertices.Add(new Vector3(
                     i * 30 - offset,
-                    SampleElevation((float)i / resolution, (float)j / resolution),
+                    SampleElevation(i, j),
                     j * 30 - offset
                 ) / (resolution * 30));
 
