@@ -2,15 +2,25 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
+[ExecuteInEditMode]
 public class LoadMap : MonoBehaviour
 {
     public Texture2D elevationTexture;
     public Material mapMaterial;
+    [Min(1)] public int scale;
+    public float maxElevation;
+    public float minElevation;
 
-    void OnEnable()
+    private void OnEnable()
     {
         GetComponent<MeshRenderer>().material = mapMaterial;
         GenerateMesh();
+        transform.localScale = new Vector3(elevationTexture.width, elevationTexture.width, elevationTexture.height) * scale;
+    }
+
+    public float SampleElevation(float u, float v)
+    {
+        return minElevation + elevationTexture.GetPixelBilinear(u, v).r * (maxElevation - minElevation);
     }
 
     private void GenerateMesh()
@@ -36,10 +46,9 @@ public class LoadMap : MonoBehaviour
         {
             for (var j = 0; j < resolution; j++)
             {
-                var elevation = elevationTexture.GetPixel(i, j).r;
                 vertices.Add(new Vector3(
                     i * 30 - offset,
-                    (float)elevation * 1000,
+                    SampleElevation((float)i / resolution, (float)j / resolution),
                     j * 30 - offset
                 ) / (resolution * 30));
 
