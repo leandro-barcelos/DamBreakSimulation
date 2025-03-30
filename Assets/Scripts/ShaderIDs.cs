@@ -2,11 +2,6 @@ using UnityEngine;
 
 public class ShaderIDs
 {
-    public static readonly int GridResolution = Shader.PropertyToID("_GridResolution");
-    public static readonly int TriangleCount = Shader.PropertyToID("_TriangleCount");
-    public static readonly int DistanceTexture = Shader.PropertyToID("_DistanceTexture");
-    public static readonly int VertexBuffer = Shader.PropertyToID("_VertexBuffer");
-    public static readonly int TriangleBuffer = Shader.PropertyToID("_TriangleBuffer");
     public static readonly int Texture2D = Shader.PropertyToID("_Texture2D");
     public static readonly int Texture2D4 = Shader.PropertyToID("_Texture2D4");
     public static readonly int Properties = Shader.PropertyToID("_Properties");
@@ -34,11 +29,6 @@ public class ShaderIDs
     public static readonly int SimTRS = Shader.PropertyToID("_SimTRS");
     public static readonly int HighSpeed = Shader.PropertyToID("_HighSpeed");
     public static readonly int LowSpeed = Shader.PropertyToID("_LowSpeed");
-    public static readonly int DamFillRate = Shader.PropertyToID("_DamFillRate");
-    public static readonly int WallWeightSamples = Shader.PropertyToID("_WallWeightSamples");
-    public static readonly int WallParticlesCount = Shader.PropertyToID("_WallParticlesCount");
-    public static readonly int WallWeightTexture = Shader.PropertyToID("_WallWeightTexture");
-    public static readonly int WallParticles = Shader.PropertyToID("_WallParticles");
     public static readonly int ElevationTexture = Shader.PropertyToID("_ElevationTexture");
     public static readonly int Max = Shader.PropertyToID("_Max");
     public static readonly int Min = Shader.PropertyToID("_Min");
