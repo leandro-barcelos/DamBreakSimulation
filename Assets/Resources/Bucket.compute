@@ -4,13 +4,13 @@
 #pragma enable_d3d11_debug_symbols
 
 // Buffers
-Texture2D<float4> _ParticlePositionTexture;
+Texture2D<float4> _FluidParticlePositionTexture;
 RWStructuredBuffer<uint> _Bucket;
 
 // Parameters
-float2 _ParticleResolution;
+float2 _FluidParticleResolution;
 uint3 _BucketResolution;
-uint _NumParticles;
+uint _FluidParticleCount;
 float3 _Min;
 float3 _Max;
 
@@ -20,23 +20,23 @@ float3 _Max;
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
     // Check if we're within texture bounds
-    if (any(id.xy >= uint2(_ParticleResolution)))
+    if (any(id.xy >= uint2(_FluidParticleResolution)))
         return;
 
-    uint id_1d = id.y * uint(_ParticleResolution.x) + id.x;
+    uint id_1d = id.y * uint(_FluidParticleResolution.x) + id.x;
 
-    if (id_1d >= _NumParticles)
+    if (id_1d >= _FluidParticleCount)
         return;
 
-    float3 pos = _ParticlePositionTexture[id.xy].xyz;
+    float3 pos = _FluidParticlePositionTexture[id.xy].xyz;
     float3 idx_3d = int3((pos - _Min) / (_Max - _Min) * (_BucketResolution - 1));
     uint index = idx_3d.x + idx_3d.y * _BucketResolution.x + idx_3d.z * _BucketResolution.x * _BucketResolution.y;
     index *= MAX_PARTICLES_PER_VOXEL;
     for (uint j = 0; j < MAX_PARTICLES_PER_VOXEL; j++)
     {
         uint original;
-        InterlockedCompareExchange(_Bucket[index + j], _NumParticles, id_1d, original);
-        if(original==_NumParticles) break;
+        InterlockedCompareExchange(_Bucket[index + j], _FluidParticleCount, id_1d, original);
+        if(original==_FluidParticleCount) break;
     }
 }
 
@@ -53,6 +53,6 @@ void ClearBucket(uint3 id : SV_DispatchThreadID)
     idx *= MAX_PARTICLES_PER_VOXEL;
     for (uint j = 0; j < MAX_PARTICLES_PER_VOXEL; j++)
     {
-        _Bucket[idx + j] = _NumParticles;
+        _Bucket[idx + j] = _FluidParticleCount;
     }
 }

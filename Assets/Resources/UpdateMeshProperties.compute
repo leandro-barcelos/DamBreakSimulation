@@ -6,33 +6,33 @@ struct MeshProperties {
 };
 
 RWStructuredBuffer<MeshProperties> _Properties;
-Texture2D<float4> _ParticlePositionTexture;
-Texture2D<float4> _ParticleVelocityTexture;
+Texture2D<float4> _FluidParticlePositionTexture;
+Texture2D<float4> _FluidParticleVelocityTexture;
 
-uint _NumParticles;
+uint _FluidParticleCount;
 float _LowSpeed;
 float _HighSpeed;
-float2 _ParticleResolution;
+float2 _FluidParticleResolution;
 float3 _ParticleScale;
 float4x4 _SimTRS;
 
-#pragma kernel CSMain
+#pragma kernel FluidParticles
 
 [numthreads(NUM_THREADS, NUM_THREADS, 1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+void FluidParticles (uint3 id : SV_DispatchThreadID)
 {
     // Check if we're within texture bounds
-    if (any(id.xy >= uint2(_ParticleResolution)))
+    if (any(id.xy >= uint2(_FluidParticleResolution)))
         return;
 
-    uint id_1d = id.y * uint(_ParticleResolution.x) + id.x;
+    uint id_1d = id.y * uint(_FluidParticleResolution.x) + id.x;
 
-    if (id_1d >= _NumParticles)
+    if (id_1d >= _FluidParticleCount)
         return;
 
     // Sample position and density
-    float4 position = _ParticlePositionTexture[id.xy];
-    float speed = length(_ParticleVelocityTexture[id.xy].xyz);
+    float4 position = _FluidParticlePositionTexture[id.xy];
+    float speed = length(_FluidParticleVelocityTexture[id.xy].xyz);
 
     // Extract simulation area scale (diagonal elements of _SimTRS)
     float3 simScale = float3(_SimTRS._m00, _SimTRS._m11, _SimTRS._m22);

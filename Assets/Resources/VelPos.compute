@@ -10,17 +10,17 @@ static const float3 a_gravity = float3(0.0, -9.8, 0.0);
 #pragma enable_d3d11_debug_symbols
 
 // Buffers
-RWTexture2D<float4> _ParticlePositionTextureWrite;
-RWTexture2D<float4> _ParticleVelocityTextureWrite;
-Texture2D<float4> _ParticlePositionTexture;
-Texture2D<float4> _ParticleVelocityTexture;
-Texture2D<float> _ParticleDensityTexture;
+RWTexture2D<float4> _FluidParticlePositionTextureWrite;
+RWTexture2D<float4> _FluidParticleVelocityTextureWrite;
+Texture2D<float4> _FluidParticlePositionTexture;
+Texture2D<float4> _FluidParticleVelocityTexture;
+Texture2D<float> _FluidParticleDensityTexture;
 Texture2D<float4> _ElevationTexture;
 SamplerState sampler_ElevationTexture;
 StructuredBuffer<uint> _Bucket;
 
 // Parameters
-uint _NumParticles;
+uint _FluidParticleCount;
 float _EffectiveRadius;
 float _EffectiveRadius6;
 float _ParticleMass;
@@ -30,7 +30,7 @@ float _GasConst;
 float _RestDensity;
 float _StiffnessCoeff;
 float _DampingCoeff;
-float2 _ParticleResolution;
+float2 _FluidParticleResolution;
 uint3 _BucketResolution;
 float3 _Min;
 float3 _Max;
@@ -64,20 +64,20 @@ float get_elevation(float4 pos)
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
     // Check if we're within texture bounds
-    if (any(id.xy >= uint2(_ParticleResolution)))
+    if (any(id.xy >= uint2(_FluidParticleResolution)))
         return;
 
-    uint id_1d = id.y * uint(_ParticleResolution.x) + id.x;
+    uint id_1d = id.y * uint(_FluidParticleResolution.x) + id.x;
 
-    if (id_1d >= _NumParticles)
+    if (id_1d >= _FluidParticleCount)
         return;
 
-    float3 pos_i = _ParticlePositionTexture[id.xy].xyz;
+    float3 pos_i = _FluidParticlePositionTexture[id.xy].xyz;
     float3 idx_3d = int3((pos_i - _Min) / (_Max - _Min) * (_BucketResolution - 1));
 
-    float rho_i = _ParticleDensityTexture[id.xy];
+    float rho_i = _FluidParticleDensityTexture[id.xy];
     float p_i = _GasConst * (rho_i - _RestDensity);
-    float4 vel_in_i = _ParticleVelocityTexture[id.xy];
+    float4 vel_in_i = _FluidParticleVelocityTexture[id.xy];
 
     float3 f_press = 0.0;
     float3 f_vis = 0.0;
@@ -96,20 +96,20 @@ void CSMain(uint3 id : SV_DispatchThreadID)
             {
                 uint j = _Bucket[bkt_j + j2];
 
-                if (j == _NumParticles) break;
+                if (j == _FluidParticleCount) break;
                 if (j == id_1d) continue;
 
-                uint2 j_2d = uint2(j % uint(_ParticleResolution.x), j / uint(_ParticleResolution.x));
+                uint2 j_2d = uint2(j % uint(_FluidParticleResolution.x), j / uint(_FluidParticleResolution.x));
 
-                float rho_j = _ParticleDensityTexture[j_2d];
+                float rho_j = _FluidParticleDensityTexture[j_2d];
                 float p_j = _GasConst * (rho_j - _RestDensity);
-                float3 pos_j = _ParticlePositionTexture[j_2d].xyz;
+                float3 pos_j = _FluidParticlePositionTexture[j_2d].xyz;
                 float3 pos_ij = pos_i - pos_j;
                 // Prevent division by zero in force calculations
                 if (rho_j > epsilon)
                 {
                     f_press += ((p_i + p_j) / (2.0 * rho_j)) * grad_W_press(pos_ij);
-                    f_vis += ((_ParticleVelocityTexture[j_2d].xyz - vel_in_i.xyz) / rho_j) * grad_W_vis(pos_ij);
+                    f_vis += ((_FluidParticleVelocityTexture[j_2d].xyz - vel_in_i.xyz) / rho_j) * grad_W_vis(pos_ij);
                 }
             }
         }
@@ -167,6 +167,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float4 pos_out_i = float4(pos_i, 1.0) + _TimeStep * vel_out_i;
     pos_out_i = clamp(pos_out_i, float4(_Min, 1.0), float4(_Max, 1.0));
     
-    _ParticleVelocityTextureWrite[id.xy] = vel_out_i;
-    _ParticlePositionTextureWrite[id.xy] = pos_out_i;
+    _FluidParticleVelocityTextureWrite[id.xy] = vel_out_i;
+    _FluidParticlePositionTextureWrite[id.xy] = pos_out_i;
 }

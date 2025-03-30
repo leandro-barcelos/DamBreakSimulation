@@ -61,10 +61,10 @@ public class Simulation : MonoBehaviour
     #region Private
 
     // Particle
-    private int _particleCount;
-    private RenderTexture[] _particlePositionTextures, _particleVelocityTextures;
-    private RenderTexture _particleDensityTexture;
-    private int _particleTextureResolution;
+    private int _fluidParticleCount;
+    private RenderTexture[] _fluidParticlePositionTextures, _fluidParticleVelocityTextures;
+    private RenderTexture _fluidParticleDensityTexture;
+    private int _fluidParticleTextureResolution;
     private float _effectiveRadius;
     private float _particleMass;
 
@@ -80,7 +80,7 @@ public class Simulation : MonoBehaviour
 
     // Shaders
     private ComputeShader _bucketShader, _clearShader, _densityShader, _velPosShader, _updateMeshPropertiesShader, _initParticlesShader;
-    private int _threadGroups;
+    private int _fluidThreadGroups;
 
     //Map
     private LoadMap mapLoader;
@@ -98,13 +98,13 @@ public class Simulation : MonoBehaviour
 
         InitShaders();
 
-        List<Vector3> particlePositions = ItitParticles();
+        List<Vector3> fluidParticlePositions = InitFluidParticles();
 
         InitRender();
 
-        CreateParticleTextures(particlePositions);
+        CreateFluidParticleTextures(fluidParticlePositions);
 
-        _threadGroups = Mathf.CeilToInt((float)_particleTextureResolution / NumThreads);
+        _fluidThreadGroups = Mathf.CeilToInt((float)_fluidParticleTextureResolution / NumThreads);
 
         InitializeBucketBuffer();
     }
@@ -125,14 +125,14 @@ public class Simulation : MonoBehaviour
 
     void OnDestroy()
     {
-        _particleMeshPropertiesBuffer?.Release();
-        _particleArgsBuffer?.Release();
-        _bucketBuffer?.Release();
-        _particlePositionTextures[Read].Release();
-        _particleVelocityTextures[Read].Release();
-        _particlePositionTextures[Write].Release();
-        _particleVelocityTextures[Write].Release();
-        _particleDensityTexture?.Release();
+        _particleMeshPropertiesBuffer.Release();
+        _particleArgsBuffer.Release();
+        _bucketBuffer.Release();
+        _fluidParticlePositionTextures[Read].Release();
+        _fluidParticleVelocityTextures[Read].Release();
+        _fluidParticlePositionTextures[Write].Release();
+        _fluidParticleVelocityTextures[Write].Release();
+        _fluidParticleDensityTexture.Release();
     }
 
     #endregion
@@ -145,7 +145,7 @@ public class Simulation : MonoBehaviour
         cameraOrbit.distance = 8000;
     }
 
-    private List<Vector3> ItitParticles()
+    private List<Vector3> InitFluidParticles()
     {
         Bounds tailingBounds = new(tailingArea.transform.position, tailingArea.transform.localScale);
         Quaternion tailingRotation = tailingArea.transform.localRotation;
@@ -212,11 +212,11 @@ public class Simulation : MonoBehaviour
         }
 
         // Save the number of particles for later use
-        _particleCount = particlePositions.Count;
-        Debug.Log($"Created {_particleCount} particles");
+        _fluidParticleCount = particlePositions.Count;
+        Debug.Log($"Created {_fluidParticleCount} particles");
 
         float totalMass = restDensity * totalTailingVolume;
-        _particleMass = totalMass / _particleCount;
+        _particleMass = totalMass / _fluidParticleCount;
         Debug.Log($"Particle mass is {_particleMass}kg");
 
         _effectiveRadius = initialParticleSpacing + 1.0f;
@@ -235,14 +235,14 @@ public class Simulation : MonoBehaviour
 
         uint[] args = { 0, 0, 0, 0, 0 };
         args[0] = _particleMesh.GetIndexCount(0);
-        args[1] = (uint)_particleCount;
+        args[1] = (uint)_fluidParticleCount;
         args[2] = _particleMesh.GetIndexStart(0);
         args[3] = _particleMesh.GetBaseVertex(0);
 
         _particleArgsBuffer = new ComputeBuffer(1, args.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
         _particleArgsBuffer.SetData(args);
 
-        _particleMeshPropertiesBuffer = new ComputeBuffer(_particleCount, MeshProperties.Size());
+        _particleMeshPropertiesBuffer = new ComputeBuffer(_fluidParticleCount, MeshProperties.Size());
         particleMaterial.SetBuffer(ShaderIDs.Properties, _particleMeshPropertiesBuffer);
     }
 
@@ -256,19 +256,21 @@ public class Simulation : MonoBehaviour
         _initParticlesShader = Resources.Load<ComputeShader>("InitParticles");
     }
 
-    private void CreateParticleTextures(List<Vector3> positions)
+    private void CreateFluidParticleTextures(List<Vector3> positions)
     {
-        // Create particle position textures
-        _particlePositionTextures = new RenderTexture[2];
+        _fluidParticleTextureResolution = Mathf.CeilToInt(Mathf.Sqrt(_fluidParticleCount));
 
-        _particlePositionTextures[Read] = CreateRenderTexture2D(_particleTextureResolution, _particleTextureResolution, RenderTextureFormat.ARGBFloat);
-        _particlePositionTextures[Write] = CreateRenderTexture2D(_particleTextureResolution, _particleTextureResolution, RenderTextureFormat.ARGBFloat);
+        // Create particle position textures
+        _fluidParticlePositionTextures = new RenderTexture[2];
+
+        _fluidParticlePositionTextures[Read] = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.ARGBFloat);
+        _fluidParticlePositionTextures[Write] = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.ARGBFloat);
 
         // Create a temporary texture to hold positions
-        Texture2D positionsTexture = new(_particleTextureResolution, _particleTextureResolution, TextureFormat.RGBAFloat, false);
+        Texture2D positionsTexture = new(_fluidParticleTextureResolution, _fluidParticleTextureResolution, TextureFormat.RGBAFloat, false);
 
         // Initialize with zeros
-        Color[] clearColors = new Color[_particleTextureResolution * _particleTextureResolution];
+        Color[] clearColors = new Color[_fluidParticleTextureResolution * _fluidParticleTextureResolution];
         for (int i = 0; i < clearColors.Length; i++)
         {
             clearColors[i] = new Color(0, 0, 0, 0);
@@ -278,8 +280,8 @@ public class Simulation : MonoBehaviour
         // Set particle positions
         for (int i = 0; i < positions.Count; i++)
         {
-            int x = i % _particleTextureResolution;
-            int y = i / _particleTextureResolution;
+            int x = i % _fluidParticleTextureResolution;
+            int y = i / _fluidParticleTextureResolution;
             Vector3 pos = positions[i];
             positionsTexture.SetPixel(x, y, new Color(pos.x, pos.y, pos.z, 1));
         }
@@ -287,21 +289,22 @@ public class Simulation : MonoBehaviour
         positionsTexture.Apply();
 
         // Copy to the RenderTexture
-        Graphics.Blit(positionsTexture, _particlePositionTextures[Read]);
+        Graphics.Blit(positionsTexture, _fluidParticlePositionTextures[Read]);
 
         // Clean up
         Destroy(positionsTexture);
 
         // Create particle velocity textures
-        _particleVelocityTextures = new RenderTexture[2];
+        _fluidParticleVelocityTextures = new RenderTexture[2];
 
-        _particleVelocityTextures[Read] = CreateRenderTexture2D(_particleTextureResolution, _particleTextureResolution, RenderTextureFormat.ARGBFloat);
-        _particleVelocityTextures[Write] = CreateRenderTexture2D(_particleTextureResolution, _particleTextureResolution, RenderTextureFormat.ARGBFloat);
+        _fluidParticleVelocityTextures[Read] = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.ARGBFloat);
+        _fluidParticleVelocityTextures[Write] = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.ARGBFloat);
 
         // Initialize velocities to zero
-        ClearTexture2D(_particleVelocityTextures[Read]);
+        ClearTexture2D(_fluidParticleVelocityTextures[Read]);
 
         // Create density texture
+        _fluidParticleDensityTexture = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.RFloat);
         _particleDensityTexture = CreateRenderTexture2D(_particleTextureResolution, _particleTextureResolution, RenderTextureFormat.RFloat);
 
     }
@@ -319,9 +322,9 @@ public class Simulation : MonoBehaviour
     private void BucketGeneration()
     {
         // Set shader parameters
-        _bucketShader.SetInt(ShaderIDs.NumParticles, _particleCount);
+        _bucketShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
         _bucketShader.SetVector(ShaderIDs.BucketResolution, (Vector3)_bucketResolution);
-        _bucketShader.SetVector(ShaderIDs.ParticleResolution, new Vector2(_particleTextureResolution, _particleTextureResolution));
+        _bucketShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
         _bucketShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _bucketShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
 
@@ -333,44 +336,44 @@ public class Simulation : MonoBehaviour
 
         // Generate Bucket
         _bucketShader.SetBuffer(0, ShaderIDs.Bucket, _bucketBuffer);
-        _bucketShader.SetTexture(0, ShaderIDs.ParticlePositionTexture, _particlePositionTextures[Read]);
+        _bucketShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
 
-        _bucketShader.Dispatch(0, _threadGroups, _threadGroups, 1);
+        _bucketShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
     }
 
     private void DensityCalculation()
     {
         // Clear density texture
-        ClearTexture2D(_particleDensityTexture);
+        ClearTexture2D(_fluidParticleDensityTexture);
 
         // Set shader parameters
-        _densityShader.SetTexture(0, ShaderIDs.ParticleDensityTexture, _particleDensityTexture);
-        _densityShader.SetTexture(0, ShaderIDs.ParticlePositionTexture, _particlePositionTextures[Read]);
+        _densityShader.SetTexture(0, ShaderIDs.FluidParticleDensityTexture, _fluidParticleDensityTexture);
+        _densityShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
         _densityShader.SetBuffer(0, ShaderIDs.Bucket, _bucketBuffer);
 
-        _densityShader.SetInt(ShaderIDs.NumParticles, _particleCount);
+        _densityShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
         _densityShader.SetVector(ShaderIDs.BucketResolution, (Vector3)_bucketResolution);
         _densityShader.SetFloat(ShaderIDs.ParticleMass, _particleMass);
         _densityShader.SetFloat(ShaderIDs.EffectiveRadius2, _effectiveRadius * _effectiveRadius);
         _densityShader.SetFloat(ShaderIDs.EffectiveRadius9, Mathf.Pow(_effectiveRadius, 9));
-        _densityShader.SetVector(ShaderIDs.ParticleResolution, new Vector2(_particleTextureResolution, _particleTextureResolution));
+        _densityShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
         _densityShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _densityShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
 
-        _densityShader.Dispatch(0, _threadGroups, _threadGroups, 1);
+        _densityShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
     }
 
     private void UpdateVelocityAndPosition(float dt)
     {
-        _velPosShader.SetTexture(0, ShaderIDs.ParticlePositionTextureWrite, _particlePositionTextures[Write]);
-        _velPosShader.SetTexture(0, ShaderIDs.ParticleVelocityTextureWrite, _particleVelocityTextures[Write]);
-        _velPosShader.SetTexture(0, ShaderIDs.ParticlePositionTexture, _particlePositionTextures[Read]);
-        _velPosShader.SetTexture(0, ShaderIDs.ParticleVelocityTexture, _particleVelocityTextures[Read]);
-        _velPosShader.SetTexture(0, ShaderIDs.ParticleDensityTexture, _particleDensityTexture);
+        _velPosShader.SetTexture(0, ShaderIDs.FluidParticlePositionTextureWrite, _fluidParticlePositionTextures[Write]);
+        _velPosShader.SetTexture(0, ShaderIDs.FluidParticleVelocityTextureWrite, _fluidParticleVelocityTextures[Write]);
+        _velPosShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
+        _velPosShader.SetTexture(0, ShaderIDs.FluidParticleVelocityTexture, _fluidParticleVelocityTextures[Read]);
+        _velPosShader.SetTexture(0, ShaderIDs.FluidParticleDensityTexture, _fluidParticleDensityTexture);
         _velPosShader.SetTexture(0, ShaderIDs.ElevationTexture, mapLoader.elevationTexture);
         _velPosShader.SetBuffer(0, ShaderIDs.Bucket, _bucketBuffer);
 
-        _velPosShader.SetInt(ShaderIDs.NumParticles, _particleCount);
+        _velPosShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
         _velPosShader.SetVector(ShaderIDs.BucketResolution, (Vector3)_bucketResolution);
         _velPosShader.SetFloat(ShaderIDs.EffectiveRadius, _effectiveRadius);
         _velPosShader.SetFloat(ShaderIDs.EffectiveRadius6, Mathf.Pow(_effectiveRadius, 6));
@@ -381,32 +384,36 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetFloat(ShaderIDs.RestDensity, restDensity);
         _velPosShader.SetFloat(ShaderIDs.StiffnessCoeff, stiffnessCoefficient);
         _velPosShader.SetFloat(ShaderIDs.DampingCoeff, dampingCoefficient);
-        _velPosShader.SetVector(ShaderIDs.ParticleResolution, new Vector2(_particleTextureResolution, _particleTextureResolution));
+        _velPosShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
         _velPosShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _velPosShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
         _velPosShader.SetFloat(ShaderIDs.MaxElevation, mapLoader.maxElevation);
         _velPosShader.SetFloat(ShaderIDs.MinElevation, mapLoader.minElevation);
 
-        _velPosShader.Dispatch(0, _threadGroups, _threadGroups, 1);
+        _velPosShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
 
-        Swap(_particlePositionTextures);
-        Swap(_particleVelocityTextures);
+        Swap(_fluidParticlePositionTextures);
+        Swap(_fluidParticleVelocityTextures);
     }
 
     private void UpdateMeshProperties()
     {
-        _updateMeshPropertiesShader.SetTexture(0, ShaderIDs.ParticlePositionTexture, _particlePositionTextures[Read]);
-        _updateMeshPropertiesShader.SetTexture(0, ShaderIDs.ParticleVelocityTexture, _particleVelocityTextures[Read]);
-        _updateMeshPropertiesShader.SetBuffer(0, ShaderIDs.Properties, _particleMeshPropertiesBuffer);
-
-        _updateMeshPropertiesShader.SetInt(ShaderIDs.NumParticles, _particleCount);
+        _updateMeshPropertiesShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
         _updateMeshPropertiesShader.SetFloat(ShaderIDs.HighSpeed, highSpeed);
         _updateMeshPropertiesShader.SetFloat(ShaderIDs.LowSpeed, lowSpeed);
-        _updateMeshPropertiesShader.SetVector(ShaderIDs.ParticleResolution, new Vector2(_particleTextureResolution, _particleTextureResolution));
+        _updateMeshPropertiesShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
         _updateMeshPropertiesShader.SetVector(ShaderIDs.ParticleScale, new Vector4(particleRadius, particleRadius, particleRadius));
         _updateMeshPropertiesShader.SetMatrix(ShaderIDs.SimTRS, transform.localToWorldMatrix);
 
+        _updateMeshPropertiesShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
+        _updateMeshPropertiesShader.SetTexture(0, ShaderIDs.FluidParticleVelocityTexture, _fluidParticleVelocityTextures[Read]);
         _updateMeshPropertiesShader.Dispatch(0, _threadGroups, _threadGroups, 1);
+        _updateMeshPropertiesShader.SetBuffer(0, ShaderIDs.Properties, _particleMeshPropertiesBuffer);
+
+
+        _fluidThreadGroups = Mathf.CeilToInt((float)_fluidParticleTextureResolution / NumThreads);
+
+        _updateMeshPropertiesShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
     }
 
     #endregion

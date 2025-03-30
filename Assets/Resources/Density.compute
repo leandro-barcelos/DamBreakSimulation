@@ -7,17 +7,17 @@ static const float PI = 3.14159265358979323846264338327950288;
 #pragma enable_d3d11_debug_symbols
 
 // Buffers
-RWTexture2D<float> _ParticleDensityTexture;
-Texture2D<float4> _ParticlePositionTexture;
+RWTexture2D<float> _FluidParticleDensityTexture;
+Texture2D<float4> _FluidParticlePositionTexture;
 StructuredBuffer<uint> _Bucket;
 
 // Parameters
-uint _NumParticles;
+uint _FluidParticleCount;
 float _ParticleMass;
 float _EffectiveRadius2;
 float _EffectiveRadius9;
 uint3 _BucketResolution;
-float2 _ParticleResolution;
+float2 _FluidParticleResolution;
 float3 _Min;
 float3 _Max;
 
@@ -34,15 +34,15 @@ float W(float3 r){
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
     // Check if we're within texture bounds
-    if (any(id.xy >= uint2(_ParticleResolution)))
+    if (any(id.xy >= uint2(_FluidParticleResolution)))
         return;
 
-    uint id_1d = id.y * uint(_ParticleResolution.x) + id.x;
+    uint id_1d = id.y * uint(_FluidParticleResolution.x) + id.x;
 
-    if (id_1d >= _NumParticles)
+    if (id_1d >= _FluidParticleCount)
         return;
 
-    float3 pos_i = _ParticlePositionTexture[id.xy].xyz;
+    float3 pos_i = _FluidParticlePositionTexture[id.xy].xyz;
     float3 idx_3d = int3((pos_i - _Min) / (_Max - _Min) * (_BucketResolution - 1));
 
     float rho = 0.0;
@@ -56,12 +56,12 @@ void CSMain(uint3 id : SV_DispatchThreadID)
             bkt_j *= MAX_PARTICLES_PER_VOXEL;
             for (uint j2 = 0; j2<MAX_PARTICLES_PER_VOXEL; j2++){
                 uint j = _Bucket[bkt_j + j2];
-                if (j == _NumParticles) break;
-                uint2 j_2D = uint2(j % uint(_ParticleResolution.x), j / uint(_ParticleResolution.x));
-                rho += _ParticleMass* W(pos_i - _ParticlePositionTexture[j_2D].xyz);
+                if (j == _FluidParticleCount) break;
+                uint2 j_2D = uint2(j % uint(_FluidParticleResolution.x), j / uint(_FluidParticleResolution.x));
+                rho += _ParticleMass* W(pos_i - _FluidParticlePositionTexture[j_2D].xyz);
             }
         }
     }
 
-    _ParticleDensityTexture[id.xy] = rho;
+    _FluidParticleDensityTexture[id.xy] = rho;
 }
