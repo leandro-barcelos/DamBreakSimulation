@@ -9,6 +9,7 @@ RWStructuredBuffer<MeshProperties> _Properties;
 Texture2D<float4> _ParticlePositionTexture;
 Texture2D<float4> _ParticleVelocityTexture;
 
+uint _NumParticles;
 float _LowSpeed;
 float _HighSpeed;
 float2 _ParticleResolution;
@@ -25,6 +26,9 @@ void CSMain (uint3 id : SV_DispatchThreadID)
         return;
 
     uint id_1d = id.y * uint(_ParticleResolution.x) + id.x;
+
+    if (id_1d >= _NumParticles)
+        return;
 
     // Sample position and density
     float4 position = _ParticlePositionTexture[id.xy];

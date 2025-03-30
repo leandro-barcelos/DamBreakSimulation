@@ -1,5 +1,5 @@
 #define NUM_THREADS 32
-#define MAX_PARTICLES_PER_VOXEL 32
+#define MAX_PARTICLES_PER_VOXEL 8
 #define MAX_BINARY_SEARCH_STEPS 5
 #define POW3(x) ((x)*(x)*(x))
 
@@ -15,7 +15,7 @@ RWTexture2D<float4> _ParticleVelocityTextureWrite;
 Texture2D<float4> _ParticlePositionTexture;
 Texture2D<float4> _ParticleVelocityTexture;
 Texture2D<float> _ParticleDensityTexture;
-Texture2D<float> _ElevationTexture;
+Texture2D<float4> _ElevationTexture;
 SamplerState sampler_ElevationTexture;
 StructuredBuffer<uint> _Bucket;
 
@@ -31,9 +31,11 @@ float _RestDensity;
 float _StiffnessCoeff;
 float _DampingCoeff;
 float2 _ParticleResolution;
-uint _BucketResolution;
-uint _ElevationTextureResolution;
-float _PositionOffset; // Add this line
+uint3 _BucketResolution;
+float3 _Min;
+float3 _Max;
+float _MinElevation;
+float _MaxElevation;
 
 float3 grad_W_press(float3 r){
     const float c = 45.0 / PI;
@@ -48,13 +50,12 @@ float grad_W_vis(float3 r){
     return abs_r < _EffectiveRadius ? (c / _EffectiveRadius6) * (_EffectiveRadius - abs_r) : 0.0;
 }
 
-float get_elevation(float2 uv) 
+float get_elevation(float4 pos) 
 {
-    float elevation = _ElevationTexture.SampleLevel(sampler_ElevationTexture, uv, 0);
+    float2 uv = (pos.xz - _Min.xz) / (_Max.xz - _Min.xz);
+    float elevation = _ElevationTexture.SampleLevel(sampler_ElevationTexture, uv, 0).r;
 
-    float offset = 30 * 0.05 * _ElevationTextureResolution;
-
-    return elevation * 1000 / (_ElevationTextureResolution * 30);
+    return _MinElevation + elevation * (_MaxElevation - _MinElevation);
 }
 
 #pragma kernel CSMain
@@ -68,11 +69,11 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
     uint id_1d = id.y * uint(_ParticleResolution.x) + id.x;
 
-    float3 pos_i = _ParticlePositionTexture[id.xy].xyz;
-    float3 idx_3d = int3(pos_i * (_BucketResolution - 1));
+    if (id_1d >= _NumParticles)
+        return;
 
-    // Add a small offset to avoid particles getting stuck in the corners
-    pos_i += float3(_PositionOffset, _PositionOffset, _PositionOffset);
+    float3 pos_i = _ParticlePositionTexture[id.xy].xyz;
+    float3 idx_3d = int3((pos_i - _Min) / (_Max - _Min) * (_BucketResolution - 1));
 
     float rho_i = _ParticleDensityTexture[id.xy];
     float p_i = _GasConst * (rho_i - _RestDensity);
@@ -89,7 +90,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
         if(all(idx_3d_j >= 0) && all((uint3)idx_3d_j < _BucketResolution))
         {
-            uint bkt_j = idx_3d_j.x + idx_3d_j.y * _BucketResolution + idx_3d_j.z * _BucketResolution * _BucketResolution;
+            uint bkt_j = idx_3d_j.x + idx_3d_j.y * _BucketResolution.x + idx_3d_j.z * _BucketResolution.x * _BucketResolution.y;
             bkt_j *= MAX_PARTICLES_PER_VOXEL;
             for (uint j2 = 0; j2 < MAX_PARTICLES_PER_VOXEL; j2++)
             {
@@ -124,22 +125,27 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float3 f_wall = 0.0;
     float3 r = 0.0;
 
-    float bottom = get_elevation(pos_i.xz) + _EffectiveRadius; 
+    float left = _Min.x + _EffectiveRadius;
+    float right = _Max.x - _EffectiveRadius;
+    float bottom = _Min.y + _EffectiveRadius;
+    float top = _Max.y - _EffectiveRadius;
+    float front = _Min.z + _EffectiveRadius;
+    float back = _Max.z - _EffectiveRadius;
 
-    if(pos_i.x < _EffectiveRadius) 
-        r.x += _EffectiveRadius - pos_i.x;
-    else if(pos_i.x > 1 - _EffectiveRadius) 
-        r.x += 1 - pos_i.x - _EffectiveRadius;
+    if(pos_i.x < left) 
+        r.x += left - pos_i.x;
+    else if(pos_i.x > right) 
+        r.x += right - pos_i.x;
 
     if(pos_i.y < bottom) 
         r.y += bottom - pos_i.y;
-    else if(pos_i.y > 1 - _EffectiveRadius) 
-        r.y += 1 - pos_i.y - _EffectiveRadius;
+    else if(pos_i.y > top) 
+        r.y += top - pos_i.y;
 
-    if(pos_i.z < _EffectiveRadius) 
-        r.z += _EffectiveRadius - pos_i.z;
-    else if(pos_i.z > 1 - _EffectiveRadius) 
-        r.z += 1 - pos_i.z - _EffectiveRadius;
+    if(pos_i.z < front) 
+        r.z += front - pos_i.z;
+    else if(pos_i.z > back) 
+        r.z += back - pos_i.z;
         
     float3 abs_r = abs(r);
     float max_r = max(abs_r.x, max(abs_r.y, abs_r.z));
@@ -159,33 +165,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float4 vel_out_i = vel_in_i + float4(a_i * _TimeStep, 1.0);
 
     float4 pos_out_i = float4(pos_i, 1.0) + _TimeStep * vel_out_i;
-
-    float elevation = get_elevation(pos_out_i.xz);
-
-    if (pos_out_i.y < elevation) 
-    {
-        float4 start = float4(0.0, 0.0, 0.0, 1.0);
-        float4 end = vel_out_i;
-
-        for (int i = 0; i < MAX_BINARY_SEARCH_STEPS; i++) 
-        {
-            vel_out_i = (start + end) * 0.5;
-            pos_out_i = float4(pos_i, 1.0) + _TimeStep * vel_out_i;
-            elevation = get_elevation(pos_out_i.xz);
-
-            if (pos_out_i.y < elevation)
-                end = vel_out_i;
-            else if (pos_out_i.y > elevation) 
-                start = vel_out_i;
-            else 
-                break;
-        }
-
-        vel_out_i = start;
-    }
-
-    pos_out_i = float4(pos_i, 1.0) + _TimeStep * vel_out_i;
-    pos_out_i = clamp(pos_out_i, 0.0, 1.0);
+    pos_out_i = clamp(pos_out_i, float4(_Min, 1.0), float4(_Max, 1.0));
     
     _ParticleVelocityTextureWrite[id.xy] = vel_out_i;
     _ParticlePositionTextureWrite[id.xy] = pos_out_i;

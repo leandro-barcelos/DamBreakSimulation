@@ -1,5 +1,5 @@
 #define NUM_THREADS 32
-#define MAX_PARTICLES_PER_VOXEL 32
+#define MAX_PARTICLES_PER_VOXEL 8
 
 #pragma enable_d3d11_debug_symbols
 
@@ -9,8 +9,10 @@ RWStructuredBuffer<uint> _Bucket;
 
 // Parameters
 float2 _ParticleResolution;
-uint _BucketResolution;
+uint3 _BucketResolution;
 uint _NumParticles;
+float3 _Min;
+float3 _Max;
 
 #pragma kernel CSMain
 
@@ -23,9 +25,12 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
     uint id_1d = id.y * uint(_ParticleResolution.x) + id.x;
 
+    if (id_1d >= _NumParticles)
+        return;
+
     float3 pos = _ParticlePositionTexture[id.xy].xyz;
-    float3 idx_3d = int3(pos * (_BucketResolution - 1));
-    uint index = idx_3d.x + idx_3d.y * _BucketResolution + idx_3d.z * _BucketResolution * _BucketResolution;
+    float3 idx_3d = int3((pos - _Min) / (_Max - _Min) * (_BucketResolution - 1));
+    uint index = idx_3d.x + idx_3d.y * _BucketResolution.x + idx_3d.z * _BucketResolution.x * _BucketResolution.y;
     index *= MAX_PARTICLES_PER_VOXEL;
     for (uint j = 0; j < MAX_PARTICLES_PER_VOXEL; j++)
     {
@@ -44,7 +49,7 @@ void ClearBucket(uint3 id : SV_DispatchThreadID)
     if (any(id >= _BucketResolution))
         return;
 
-    uint idx = id.x + id.y * _BucketResolution + id.z * _BucketResolution * _BucketResolution;
+    uint idx = id.x + id.y * _BucketResolution.x + id.z * _BucketResolution.x * _BucketResolution.y;
     idx *= MAX_PARTICLES_PER_VOXEL;
     for (uint j = 0; j < MAX_PARTICLES_PER_VOXEL; j++)
     {

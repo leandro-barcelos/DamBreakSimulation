@@ -1,5 +1,5 @@
 #define NUM_THREADS 32
-#define MAX_PARTICLES_PER_VOXEL 32
+#define MAX_PARTICLES_PER_VOXEL 8
 #define POW3(x) ((x)*(x)*(x))
 
 static const float PI = 3.14159265358979323846264338327950288;
@@ -16,8 +16,10 @@ uint _NumParticles;
 float _ParticleMass;
 float _EffectiveRadius2;
 float _EffectiveRadius9;
-uint _BucketResolution;
+uint3 _BucketResolution;
 float2 _ParticleResolution;
+float3 _Min;
+float3 _Max;
 
 float W(float3 r){
     const float c = 315.0/(64.0*PI);
@@ -35,8 +37,13 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     if (any(id.xy >= uint2(_ParticleResolution)))
         return;
 
+    uint id_1d = id.y * uint(_ParticleResolution.x) + id.x;
+
+    if (id_1d >= _NumParticles)
+        return;
+
     float3 pos_i = _ParticlePositionTexture[id.xy].xyz;
-    float3 idx_3d = int3(pos_i * (_BucketResolution - 1));
+    float3 idx_3d = int3((pos_i - _Min) / (_Max - _Min) * (_BucketResolution - 1));
 
     float rho = 0.0;
     for (int x_offset=-1; x_offset<=1; x_offset++)
@@ -45,7 +52,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         int3 idx_3d_j = idx_3d + int3(x_offset, y_offset, z_offset);
         if(all(idx_3d_j >= 0) && all((uint3)idx_3d_j < _BucketResolution))
         {
-            uint bkt_j = idx_3d_j.x + idx_3d_j.y * _BucketResolution + idx_3d_j.z * _BucketResolution * _BucketResolution;
+            uint bkt_j = idx_3d_j.x + idx_3d_j.y * _BucketResolution.x + idx_3d_j.z * _BucketResolution.x * _BucketResolution.y;
             bkt_j *= MAX_PARTICLES_PER_VOXEL;
             for (uint j2 = 0; j2<MAX_PARTICLES_PER_VOXEL; j2++){
                 uint j = _Bucket[bkt_j + j2];

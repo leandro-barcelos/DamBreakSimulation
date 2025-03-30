@@ -31,7 +31,7 @@ public class CameraOrbit : MonoBehaviour
     void LateUpdate()
     {
         if (distance < 0) distance = 0;
-        distance -= Input.GetAxis("Mouse ScrollWheel") * 2;
+        distance -= Input.GetAxis("Mouse ScrollWheel") * 200;
         if (target && (Input.GetMouseButton(0) || Input.GetMouseButton(1)))
         {
             var pos = Input.mousePosition;

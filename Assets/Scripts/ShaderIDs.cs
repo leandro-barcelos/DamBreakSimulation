@@ -40,6 +40,8 @@ public class ShaderIDs
     public static readonly int WallWeightTexture = Shader.PropertyToID("_WallWeightTexture");
     public static readonly int WallParticles = Shader.PropertyToID("_WallParticles");
     public static readonly int ElevationTexture = Shader.PropertyToID("_ElevationTexture");
-    public static readonly int ElevationTextureResolution = Shader.PropertyToID("_ElevationTextureResolution");
-    public static readonly int PositionOffset = Shader.PropertyToID("_PositionOffset");
+    public static readonly int Max = Shader.PropertyToID("_Max");
+    public static readonly int Min = Shader.PropertyToID("_Min");
+    public static readonly int MaxElevation = Shader.PropertyToID("_MaxElevation");
+    public static readonly int MinElevation = Shader.PropertyToID("_MinElevation");
 }
