@@ -6,6 +6,7 @@
 static const float epsilon = 1e-6;
 static const float PI = 3.14159265358979323846264338327950288;
 static const float3 a_gravity = float3(0.0, -9.8, 0.0);
+static const float D = 90000;
 
 #pragma enable_d3d11_debug_symbols
 
@@ -13,6 +14,7 @@ static const float3 a_gravity = float3(0.0, -9.8, 0.0);
 RWTexture2D<float4> _FluidParticlePositionTextureWrite;
 RWTexture2D<float4> _FluidParticleVelocityTextureWrite;
 Texture2D<float4> _FluidParticlePositionTexture;
+Texture2D<float4> _WallParticlePositionTexture;
 Texture2D<float4> _FluidParticleVelocityTexture;
 Texture2D<float> _FluidParticleDensityTexture;
 Texture2D<float4> _ElevationTexture;
@@ -32,6 +34,7 @@ float _RestDensity;
 float _StiffnessCoeff;
 float _DampingCoeff;
 float2 _FluidParticleResolution;
+float2 _WallParticleResolution;
 uint3 _BucketResolution;
 float3 _Min;
 float3 _Max;
@@ -51,12 +54,19 @@ float grad_W_vis(float3 r){
     return abs_r < _EffectiveRadius ? (c / _EffectiveRadius6) * (_EffectiveRadius - abs_r) : 0.0;
 }
 
-float get_elevation(float4 pos) 
+float get_elevation(float3 pos) 
 {
+    // Convert world position to UV coordinates (0-1 range)
     float2 uv = (pos.xz - _Min.xz) / (_Max.xz - _Min.xz);
-    float elevation = _ElevationTexture.SampleLevel(sampler_ElevationTexture, uv, 0).r;
-
-    return _MinElevation + elevation * (_MaxElevation - _MinElevation);
+    
+    // Clamp UV coordinates to ensure we're within the texture bounds
+    uv = clamp(uv, float2(0, 0), float2(1, 1));
+    
+    // Sample the elevation texture - this returns a normalized height (0-1)
+    float normalizedElevation = _ElevationTexture.SampleLevel(sampler_ElevationTexture, uv, 0).r;
+    
+    // Convert from normalized value to world space elevation using the same formula as in LoadMap.SampleElevation
+    return _MinElevation + normalizedElevation * (_MaxElevation - _MinElevation);
 }
 
 #pragma kernel CSMain
@@ -82,6 +92,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
     float3 f_press = 0.0;
     float3 f_vis = 0.0;
+    float3 f_bound = 0.0;
 
     for (int x_offset = -1; x_offset <= 1; x_offset++)
     for (int y_offset = -1; y_offset <= 1; y_offset++)
@@ -98,19 +109,34 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                 uint j = _Bucket[bkt_j + j2];
 
                 if (j == _ParticleCount) break;
-                if (j >= _FluidParticleCount || j == id_1d) continue;
+                if (j == id_1d) continue;
 
-                uint2 j_2d = uint2(j % uint(_FluidParticleResolution.x), j / uint(_FluidParticleResolution.x));
-
-                float rho_j = _FluidParticleDensityTexture[j_2d];
-                float p_j = _GasConst * (rho_j - _RestDensity);
-                float3 pos_j = _FluidParticlePositionTexture[j_2d].xyz;
-                float3 pos_ij = pos_i - pos_j;
-                // Prevent division by zero in force calculations
-                if (rho_j > epsilon)
+                if (j >= _FluidParticleCount)
                 {
-                    f_press += ((p_i + p_j) / (2.0 * rho_j)) * grad_W_press(pos_ij);
-                    f_vis += ((_FluidParticleVelocityTexture[j_2d].xyz - vel_in_i.xyz) / rho_j) * grad_W_vis(pos_ij);
+                    j -= _FluidParticleCount;
+                    uint2 j_2d = uint2(j % uint(_WallParticleResolution.x), j / uint(_WallParticleResolution.x));
+                    float3 pos_j = _WallParticlePositionTexture[j_2d].xyz;
+                    float3 pos_ij = pos_i - pos_j;
+                    float div = _EffectiveRadius / length(pos_ij);
+
+                    if (div > 1)
+                        continue;
+                        
+                    f_bound += D * (pow(div, 12) - pow(div, 4)) * pos_ij / pow(length(pos_ij), 2);
+                }
+                else
+                {
+                    uint2 j_2d = uint2(j % uint(_FluidParticleResolution.x), j / uint(_FluidParticleResolution.x));
+                    float rho_j = _FluidParticleDensityTexture[j_2d];
+                    float p_j = _GasConst * (rho_j - _RestDensity);
+                    float3 pos_j = _FluidParticlePositionTexture[j_2d].xyz;
+                    float3 pos_ij = pos_i - pos_j;
+                    // Prevent division by zero in force calculations
+                    if (rho_j > epsilon)
+                    {
+                        f_press += ((p_i + p_j) / (2.0 * rho_j)) * grad_W_press(pos_ij);
+                        f_vis += ((_FluidParticleVelocityTexture[j_2d].xyz - vel_in_i.xyz) / rho_j) * grad_W_vis(pos_ij);
+                    }
                 }
             }
         }
@@ -162,11 +188,17 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         f_wall *= _ParticleMass;
     }
 
-    float3 a_i = a_gravity + (float3(f_press + f_vis) + f_wall) / _ParticleMass;
+    float3 a_i = a_gravity + (float3(f_press + f_vis) + f_wall + f_bound) / _ParticleMass;
     float4 vel_out_i = vel_in_i + float4(a_i * _TimeStep, 1.0);
 
     float4 pos_out_i = float4(pos_i, 1.0) + _TimeStep * vel_out_i;
-    pos_out_i = clamp(pos_out_i, float4(_Min, 1.0), float4(_Max, 1.0));
+    
+    // Get elevation for the particle's xz position
+    float elevation = get_elevation(pos_out_i.xyz);
+    pos_out_i.y = max(pos_out_i.y, elevation);
+    
+    // Clamp within overall simulation bounds
+    pos_out_i = clamp(pos_out_i, float4(_Min.x, _Min.y, _Min.z, 1.0), float4(_Max, 1.0));
     
     _FluidParticleVelocityTextureWrite[id.xy] = vel_out_i;
     _FluidParticlePositionTextureWrite[id.xy] = pos_out_i;
