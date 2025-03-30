@@ -38,4 +38,5 @@ public class ShaderIDs
     public static readonly int WallParticleCount = Shader.PropertyToID("_WallParticleCount");
     public static readonly int WallParticleResolution = Shader.PropertyToID("_WallParticleResolution");
     public static readonly int IsVisible = Shader.PropertyToID("_IsVisible");
+    public static readonly int ParticleCount = Shader.PropertyToID("_ParticleCount");
 }

@@ -123,11 +123,11 @@ public class Simulation : MonoBehaviour
 
     void Update()
     {
-        // BucketGeneration();
-        // DensityCalculation();
+        BucketGeneration();
+        DensityCalculation();
 
-        // for (var i = 0; i < 5; i++)
-        //     UpdateVelocityAndPosition(Time.deltaTime / 25);
+        for (var i = 0; i < 5; i++)
+            UpdateVelocityAndPosition(Time.deltaTime / 25);
 
         UpdateFluidMeshProperties();
 
@@ -412,22 +412,33 @@ public class Simulation : MonoBehaviour
     {
         // Set shader parameters
         _bucketShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
+        _bucketShader.SetInt(ShaderIDs.WallParticleCount, _wallParticleCount);
+        _bucketShader.SetInt(ShaderIDs.ParticleCount, _fluidParticleCount + _wallParticleCount);
         _bucketShader.SetVector(ShaderIDs.BucketResolution, (Vector3)_bucketResolution);
         _bucketShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
+        _bucketShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
         _bucketShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _bucketShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
 
         // Clear bucket buffer with particle count as empty marker
-        _bucketShader.SetBuffer(1, ShaderIDs.Bucket, _bucketBuffer);
+        int clearKernel = _bucketShader.FindKernel("ClearBucket");
+        _bucketShader.SetBuffer(clearKernel, ShaderIDs.Bucket, _bucketBuffer);
         Vector3Int bucketThreadGroups = Vector3Int.CeilToInt((Vector3)_bucketResolution / 10f);
 
-        _bucketShader.Dispatch(1, bucketThreadGroups.x, bucketThreadGroups.y, bucketThreadGroups.z);
+        _bucketShader.Dispatch(clearKernel, bucketThreadGroups.x, bucketThreadGroups.y, bucketThreadGroups.z);
 
         // Generate Bucket
-        _bucketShader.SetBuffer(0, ShaderIDs.Bucket, _bucketBuffer);
-        _bucketShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
+        int fluidKernel = _bucketShader.FindKernel("Fluid");
+        _bucketShader.SetBuffer(fluidKernel, ShaderIDs.Bucket, _bucketBuffer);
+        _bucketShader.SetTexture(fluidKernel, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
 
-        _bucketShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
+        _bucketShader.Dispatch(fluidKernel, _fluidThreadGroups, _fluidThreadGroups, 1);
+
+        int wallKernel = _bucketShader.FindKernel("Wall");
+        _bucketShader.SetBuffer(wallKernel, ShaderIDs.Bucket, _bucketBuffer);
+        _bucketShader.SetTexture(wallKernel, ShaderIDs.WallParticlePositionTexture, _wallParticlePositionTexture);
+
+        _bucketShader.Dispatch(wallKernel, _wallThreadGroups, _wallThreadGroups, 1);
     }
 
     private void DensityCalculation()
@@ -438,14 +449,17 @@ public class Simulation : MonoBehaviour
         // Set shader parameters
         _densityShader.SetTexture(0, ShaderIDs.FluidParticleDensityTexture, _fluidParticleDensityTexture);
         _densityShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
+        _densityShader.SetTexture(0, ShaderIDs.WallParticlePositionTexture, _wallParticlePositionTexture);
         _densityShader.SetBuffer(0, ShaderIDs.Bucket, _bucketBuffer);
 
         _densityShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
+        _densityShader.SetInt(ShaderIDs.ParticleCount, _fluidParticleCount + _wallParticleCount);
         _densityShader.SetVector(ShaderIDs.BucketResolution, (Vector3)_bucketResolution);
         _densityShader.SetFloat(ShaderIDs.ParticleMass, _particleMass);
         _densityShader.SetFloat(ShaderIDs.EffectiveRadius2, _effectiveRadius * _effectiveRadius);
         _densityShader.SetFloat(ShaderIDs.EffectiveRadius9, Mathf.Pow(_effectiveRadius, 9));
         _densityShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
+        _densityShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
         _densityShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _densityShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
 
@@ -463,6 +477,7 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetBuffer(0, ShaderIDs.Bucket, _bucketBuffer);
 
         _velPosShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
+        _velPosShader.SetInt(ShaderIDs.ParticleCount, _fluidParticleCount + _wallParticleCount);
         _velPosShader.SetVector(ShaderIDs.BucketResolution, (Vector3)_bucketResolution);
         _velPosShader.SetFloat(ShaderIDs.EffectiveRadius, _effectiveRadius);
         _velPosShader.SetFloat(ShaderIDs.EffectiveRadius6, Mathf.Pow(_effectiveRadius, 6));

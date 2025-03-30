@@ -20,6 +20,7 @@ SamplerState sampler_ElevationTexture;
 StructuredBuffer<uint> _Bucket;
 
 // Parameters
+uint _ParticleCount;
 uint _FluidParticleCount;
 float _EffectiveRadius;
 float _EffectiveRadius6;
@@ -96,8 +97,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
             {
                 uint j = _Bucket[bkt_j + j2];
 
-                if (j == _FluidParticleCount) break;
-                if (j == id_1d) continue;
+                if (j == _ParticleCount) break;
+                if (j >= _FluidParticleCount || j == id_1d) continue;
 
                 uint2 j_2d = uint2(j % uint(_FluidParticleResolution.x), j / uint(_FluidParticleResolution.x));
 

@@ -9,15 +9,18 @@ static const float PI = 3.14159265358979323846264338327950288;
 // Buffers
 RWTexture2D<float> _FluidParticleDensityTexture;
 Texture2D<float4> _FluidParticlePositionTexture;
+Texture2D<float4> _WallParticlePositionTexture;
 StructuredBuffer<uint> _Bucket;
 
 // Parameters
 uint _FluidParticleCount;
+uint _ParticleCount;
 float _ParticleMass;
 float _EffectiveRadius2;
 float _EffectiveRadius9;
 uint3 _BucketResolution;
 float2 _FluidParticleResolution;
+float2 _WallParticleResolution;
 float3 _Min;
 float3 _Max;
 
@@ -56,9 +59,23 @@ void CSMain(uint3 id : SV_DispatchThreadID)
             bkt_j *= MAX_PARTICLES_PER_VOXEL;
             for (uint j2 = 0; j2<MAX_PARTICLES_PER_VOXEL; j2++){
                 uint j = _Bucket[bkt_j + j2];
-                if (j == _FluidParticleCount) break;
-                uint2 j_2D = uint2(j % uint(_FluidParticleResolution.x), j / uint(_FluidParticleResolution.x));
-                rho += _ParticleMass* W(pos_i - _FluidParticlePositionTexture[j_2D].xyz);
+                if (j == _ParticleCount) break;
+
+                float3 pos_j;
+
+                if (j >= _FluidParticleCount)
+                {
+                    j -= _FluidParticleCount;
+                    uint2 j_2D = uint2(j % uint(_WallParticleResolution.x), j / uint(_WallParticleResolution.x));
+                    pos_j = _WallParticlePositionTexture[j_2D].xyz;
+                } 
+                else
+                {
+                    uint2 j_2D = uint2(j % uint(_FluidParticleResolution.x), j / uint(_FluidParticleResolution.x));
+                    pos_j = _FluidParticlePositionTexture[j_2D].xyz;
+                }
+
+                rho += _ParticleMass* W(pos_i - pos_j);
             }
         }
     }
