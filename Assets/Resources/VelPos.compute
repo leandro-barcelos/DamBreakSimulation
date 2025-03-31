@@ -1,6 +1,5 @@
 #define NUM_THREADS 32
 #define MAX_PARTICLES_PER_VOXEL 8
-#define MAX_BINARY_SEARCH_STEPS 5
 #define POW3(x) ((x)*(x)*(x))
 
 static const float epsilon = 1e-6;
@@ -117,12 +116,18 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                     uint2 j_2d = uint2(j % uint(_WallParticleResolution.x), j / uint(_WallParticleResolution.x));
                     float3 pos_j = _WallParticlePositionTexture[j_2d].xyz;
                     float3 pos_ij = pos_i - pos_j;
-                    float div = _EffectiveRadius / length(pos_ij);
-
-                    if (div > 1)
-                        continue;
-                        
-                    f_bound += D * (pow(div, 12) - pow(div, 4)) * pos_ij / pow(length(pos_ij), 2);
+                    float dist = length(pos_ij);
+                    
+                    float rho_j = _FluidParticleDensityTexture[j_2d];
+                    float p_j = _GasConst * (rho_j - _RestDensity);
+                    float3 pos_j = _FluidParticlePositionTexture[j_2d].xyz;
+                    float3 pos_ij = pos_i - pos_j;
+                    // Prevent division by zero in force calculations
+                    if (rho_j > epsilon)
+                    {
+                        f_press += ((p_i + p_j) / (2.0 * rho_j)) * grad_W_press(pos_ij);
+                        f_vis += ((_FluidParticleVelocityTexture[j_2d].xyz - vel_in_i.xyz) / rho_j) * grad_W_vis(pos_ij);
+                    }
                 }
                 else
                 {
@@ -150,7 +155,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     }
 
     float3 f_wall = 0.0;
-    float3 r = 0.0;
+    float3 r = 0.0; 
 
     float left = _Min.x + _EffectiveRadius;
     float right = _Max.x - _EffectiveRadius;
@@ -192,10 +197,6 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float4 vel_out_i = vel_in_i + float4(a_i * _TimeStep, 1.0);
 
     float4 pos_out_i = float4(pos_i, 1.0) + _TimeStep * vel_out_i;
-    
-    // Get elevation for the particle's xz position
-    float elevation = get_elevation(pos_out_i.xyz);
-    pos_out_i.y = max(pos_out_i.y, elevation);
     
     // Clamp within overall simulation bounds
     pos_out_i = clamp(pos_out_i, float4(_Min.x, _Min.y, _Min.z, 1.0), float4(_Max, 1.0));

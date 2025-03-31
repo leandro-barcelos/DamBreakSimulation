@@ -217,7 +217,7 @@ public class Simulation : MonoBehaviour
 
                     // Skip positions that are below the terrain elevation
                     float elevation = mapLoader.SampleElevation(uv.x, uv.y);
-                    if (pos.y < elevation) continue;
+                    if (pos.y < elevation + initialParticleSpacing) continue;
 
                     particlePositions.Add(pos);
                 }
@@ -471,6 +471,7 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticlePositionTextureWrite, _fluidParticlePositionTextures[Write]);
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticleVelocityTextureWrite, _fluidParticleVelocityTextures[Write]);
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
+        _velPosShader.SetTexture(0, ShaderIDs.WallParticlePositionTexture, _wallParticlePositionTexture);
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticleVelocityTexture, _fluidParticleVelocityTextures[Read]);
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticleDensityTexture, _fluidParticleDensityTexture);
         _velPosShader.SetTexture(0, ShaderIDs.ElevationTexture, mapLoader.elevationTexture);
@@ -489,6 +490,7 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetFloat(ShaderIDs.StiffnessCoeff, stiffnessCoefficient);
         _velPosShader.SetFloat(ShaderIDs.DampingCoeff, dampingCoefficient);
         _velPosShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
+        _velPosShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
         _velPosShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _velPosShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
         _velPosShader.SetFloat(ShaderIDs.MaxElevation, mapLoader.maxElevation);
