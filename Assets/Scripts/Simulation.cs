@@ -36,6 +36,7 @@ public class Simulation : MonoBehaviour
 
     [Header("Initialization")]
     public GameObject tailingArea;
+    public GameObject dam;
     public float totalTailingVolume;
     [Min(0.01f)] public float initialParticleSpacing = 10;
     [Header("Parameters")]
@@ -175,16 +176,12 @@ public class Simulation : MonoBehaviour
 
     private List<Vector3> InitFluidParticles()
     {
-        Bounds tailingBounds = new(tailingArea.transform.position, tailingArea.transform.localScale);
+        Bounds tailingBounds = new(tailingArea.transform.localPosition, tailingArea.transform.localScale);
+        Bounds damBounds = new(dam.transform.localPosition, dam.transform.localScale);
         Quaternion tailingRotation = tailingArea.transform.localRotation;
+        dam.transform.localRotation = tailingRotation;
 
-        // Get bounds from the mesh renderer
-        if (!mapGameObject.TryGetComponent<Renderer>(out var mapRenderer))
-        {
-            Debug.LogError("No Renderer found on mapGameObject!");
-        }
-
-        Bounds mapBounds = mapRenderer ? mapRenderer.bounds : new Bounds(mapGameObject.transform.position, Vector3.one);
+        Bounds mapBounds = mapGameObject.GetComponent<Renderer>().bounds;
 
         // Adjust the y scale based on elevation data from mapLoader
         Vector3 mapScale = new(
@@ -232,7 +229,7 @@ public class Simulation : MonoBehaviour
 
                     // Skip positions that are below the terrain elevation
                     float elevation = mapLoader.SampleElevation(uv.x, uv.y);
-                    if (pos.y < elevation) continue;
+                    if (pos.y < elevation + initialParticleSpacing) continue;
 
                     particlePositions.Add(pos);
                 }
@@ -247,7 +244,7 @@ public class Simulation : MonoBehaviour
         _particleMass = totalMass / _fluidParticleCount;
         Debug.Log($"Particle mass is {_particleMass}kg");
 
-        _effectiveRadius = initialParticleSpacing + 1.0f;
+        _effectiveRadius = initialParticleSpacing * 1.2f;
         _bucketResolution = Vector3Int.CeilToInt(_simulationBounds.size / _effectiveRadius);
 
         return particlePositions;
@@ -262,7 +259,7 @@ public class Simulation : MonoBehaviour
         int xCount = Mathf.FloorToInt(xLength / initialParticleSpacing);
         int zCount = Mathf.FloorToInt(zLength / initialParticleSpacing);
 
-        Vector2 startPos = new(_simulationBounds.min.x, _simulationBounds.min.z);
+        Vector3 startPos = new(_simulationBounds.min.x, _simulationBounds.min.z);
         List<Vector3> particlePositions = new();
 
         // Create particles within the bounds
@@ -270,7 +267,7 @@ public class Simulation : MonoBehaviour
         {
             for (int z = 0; z < zCount; z++)
             {
-                Vector2 pos_2d = startPos + new Vector2(
+                Vector2 pos_2d = (Vector2)startPos + new Vector2(
                     x * initialParticleSpacing + initialParticleSpacing * 0.5f,
                     z * initialParticleSpacing + initialParticleSpacing * 0.5f);
 
@@ -284,6 +281,49 @@ public class Simulation : MonoBehaviour
                 Vector3 pos = new(pos_2d.x, elevation - initialParticleSpacing * 0.5f, pos_2d.y);
 
                 particlePositions.Add(pos);
+            }
+        }
+
+        Bounds damBound = new(dam.transform.localPosition, dam.transform.localScale);
+        Quaternion damRotation = dam.transform.localRotation;
+
+        xLength = damBound.size.x > damBound.size.z ? damBound.size.x : 1.0f;
+        float yLength = damBound.size.y;
+        zLength = xLength == 1.0 ? damBound.size.z : 1.0f;
+
+        xCount = Mathf.Max(Mathf.FloorToInt(xLength / initialParticleSpacing), 1);
+        int yCount = Mathf.FloorToInt(yLength / initialParticleSpacing);
+        zCount = Mathf.Max(Mathf.FloorToInt(zLength / initialParticleSpacing), 1);
+
+        startPos = damBound.min;
+
+        // Create particles within the bounds
+        for (int x = 0; x < xCount; x++)
+        {
+            for (int y = 0; y < yCount; y++)
+            {
+                for (int z = 0; z < zCount; z++)
+                {
+                    Vector3 pos = startPos + new Vector3(
+                        x * initialParticleSpacing + initialParticleSpacing * 0.5f,
+                        y * initialParticleSpacing + initialParticleSpacing * 0.5f,
+                        z * initialParticleSpacing + initialParticleSpacing * 0.5f);
+
+                    // Rotate position according to the tailing area's rotation
+                    Vector3 localPos = pos - damBound.center;
+                    Vector3 rotatedPos = damRotation * localPos;
+                    pos = rotatedPos + damBound.center;
+
+                    Vector2 uv = new(
+                            (pos.x - _simulationBounds.min.x) / _simulationBounds.size.x,
+                            (pos.z - _simulationBounds.min.z) / _simulationBounds.size.z);
+
+                    // Skip positions that are below the terrain elevation
+                    float elevation = mapLoader.SampleElevation(uv.x, uv.y);
+                    if (pos.y < elevation) continue;
+
+                    particlePositions.Add(pos);
+                }
             }
         }
 
