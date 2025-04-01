@@ -39,11 +39,15 @@ public class Simulation : MonoBehaviour
     public float totalTailingVolume;
     [Min(0.01f)] public float initialParticleSpacing = 10;
     [Header("Parameters")]
-    [Range(0f, 10f)] public float viscosity = 0.01f;
-    [Range(0f, 5000f)] public float restDensity = 1.5f;
-    [Range(1f, 5000f)] public float gasConstant = 150.0f;
+    [Range(0f, 10f)] public float viscosity = 1.0016f;
+    [Range(0f, 5000f)] public float restDensity = 4900f;
+    [Range(1f, 5000f)] public float gasConstant = 500f;
     [Range(0f, 10000f)] public float stiffnessCoefficient = 5000.0f;
-    [Range(1f, 50f)] public float dampingCoefficient = 10.0f;
+    [Range(0f, 1f)] public float coefficientOfRestitution = 0.7f;
+    public float fluidElasticModulo = 2.15e9f;
+    public float wallElasticModulo = 10e9f;
+    public float fluidPoissonRatio = 0.5f;
+    public float wallPoissonRatio = 0.25f;
 
     [Header("Rendering")]
     public float occlusionRange;
@@ -68,6 +72,8 @@ public class Simulation : MonoBehaviour
     private int _fluidParticleTextureResolution;
     private float _effectiveRadius;
     private float _particleMass;
+    private float _elasticPoissonRatio;
+    private float _dampingCoefficient;
 
     // Wall
     private int _wallParticleCount;
@@ -85,7 +91,7 @@ public class Simulation : MonoBehaviour
     private Bounds _bounds;
 
     // Shaders
-    private ComputeShader _bucketShader, _clearShader, _densityShader, _velPosShader, _updateMeshPropertiesShader, _initParticlesShader;
+    private ComputeShader _bucketShader, _clearShader, _densityShader, _velPosShader, _updateMeshPropertiesShader;
     private int _fluidThreadGroups, _wallThreadGroups;
 
     //Map
@@ -119,6 +125,14 @@ public class Simulation : MonoBehaviour
         InitializeBucketBuffer();
 
         UpdateWallMeshProperties();
+
+        _elasticPoissonRatio = (1 - fluidPoissonRatio * fluidPoissonRatio) / fluidElasticModulo + (1 - wallPoissonRatio * wallPoissonRatio) / wallElasticModulo;
+
+        // Then calculate damping coefficient:
+        float alphaD = 0.5f; // Depends on contact stiffness
+        _dampingCoefficient = -Mathf.Log(coefficientOfRestitution) /
+            (alphaD * Mathf.Sqrt(Mathf.Pow(Mathf.Log(coefficientOfRestitution), 2) +
+            Mathf.Pow(Mathf.PI, 2)));
     }
 
     void Update()
@@ -307,7 +321,6 @@ public class Simulation : MonoBehaviour
         _densityShader = Resources.Load<ComputeShader>("Density");
         _velPosShader = Resources.Load<ComputeShader>("VelPos");
         _updateMeshPropertiesShader = Resources.Load<ComputeShader>("UpdateMeshProperties");
-        _initParticlesShader = Resources.Load<ComputeShader>("InitParticles");
     }
 
     private void CreateFluidParticleTextures(List<Vector3> positions)
@@ -471,6 +484,7 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticlePositionTextureWrite, _fluidParticlePositionTextures[Write]);
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticleVelocityTextureWrite, _fluidParticleVelocityTextures[Write]);
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
+        _velPosShader.SetTexture(0, ShaderIDs.WallParticlePositionTexture, _wallParticlePositionTexture);
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticleVelocityTexture, _fluidParticleVelocityTextures[Read]);
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticleDensityTexture, _fluidParticleDensityTexture);
         _velPosShader.SetTexture(0, ShaderIDs.ElevationTexture, mapLoader.elevationTexture);
@@ -487,12 +501,16 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetFloat(ShaderIDs.GasConst, gasConstant);
         _velPosShader.SetFloat(ShaderIDs.RestDensity, restDensity);
         _velPosShader.SetFloat(ShaderIDs.StiffnessCoeff, stiffnessCoefficient);
-        _velPosShader.SetFloat(ShaderIDs.DampingCoeff, dampingCoefficient);
+        _velPosShader.SetFloat(ShaderIDs.DampingCoeff, _dampingCoefficient);
         _velPosShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
         _velPosShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _velPosShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
         _velPosShader.SetFloat(ShaderIDs.MaxElevation, mapLoader.maxElevation);
         _velPosShader.SetFloat(ShaderIDs.MinElevation, mapLoader.minElevation);
+        _velPosShader.SetFloat(ShaderIDs.HalfInitialParticleSpacing, initialParticleSpacing / 2f);
+        _velPosShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
+        _velPosShader.SetVector(ShaderIDs.ElevationResolution, mapLoader.elevationTexture.Size());
+        _velPosShader.SetFloat(ShaderIDs.ElasticPoissonRatio, _elasticPoissonRatio);
 
         _velPosShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
 

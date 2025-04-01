@@ -39,4 +39,7 @@ public class ShaderIDs
     public static readonly int WallParticleResolution = Shader.PropertyToID("_WallParticleResolution");
     public static readonly int IsVisible = Shader.PropertyToID("_IsVisible");
     public static readonly int ParticleCount = Shader.PropertyToID("_ParticleCount");
+    public static readonly int HalfInitialParticleSpacing = Shader.PropertyToID("_HalfInitialParticleSpacing");
+    public static readonly int ElasticPoissonRatio = Shader.PropertyToID("_ElasticPoissonRatio");
+    public static readonly int ElevationResolution = Shader.PropertyToID("_ElevationResolution");
 }
