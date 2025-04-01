@@ -27,8 +27,8 @@ public class ShaderIDs
     public static readonly int StiffnessCoeff = Shader.PropertyToID("_StiffnessCoeff");
     public static readonly int DampingCoeff = Shader.PropertyToID("_DampingCoeff");
     public static readonly int SimTRS = Shader.PropertyToID("_SimTRS");
-    public static readonly int HighSpeed = Shader.PropertyToID("_HighSpeed");
-    public static readonly int LowSpeed = Shader.PropertyToID("_LowSpeed");
+    public static readonly int HighValue = Shader.PropertyToID("_HighValue");
+    public static readonly int LowValue = Shader.PropertyToID("_LowValue");
     public static readonly int ElevationTexture = Shader.PropertyToID("_ElevationTexture");
     public static readonly int Max = Shader.PropertyToID("_Max");
     public static readonly int Min = Shader.PropertyToID("_Min");
@@ -42,4 +42,5 @@ public class ShaderIDs
     public static readonly int HalfInitialParticleSpacing = Shader.PropertyToID("_HalfInitialParticleSpacing");
     public static readonly int ElasticPoissonRatio = Shader.PropertyToID("_ElasticPoissonRatio");
     public static readonly int ElevationResolution = Shader.PropertyToID("_ElevationResolution");
+    public static readonly int ColorDensity = Shader.PropertyToID("_ColorDensity");
 }

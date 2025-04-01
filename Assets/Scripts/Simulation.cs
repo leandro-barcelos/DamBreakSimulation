@@ -55,8 +55,9 @@ public class Simulation : MonoBehaviour
     public Material particleMaterial;
     public bool renderParticles;
     public bool renderWallParticles = false;
-    [Range(0f, 10000f)] public float lowSpeed;
-    [Range(0f, 10000f)] public float highSpeed;
+    public bool colorDensity = false;
+    [Range(0f, 10000f)] public float lowValue;
+    [Range(0f, 10000f)] public float highValue;
 
     [Header("Map Generation")]
     public GameObject mapGameObject;
@@ -521,14 +522,16 @@ public class Simulation : MonoBehaviour
     private void UpdateFluidMeshProperties()
     {
         _updateMeshPropertiesShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
-        _updateMeshPropertiesShader.SetFloat(ShaderIDs.HighSpeed, highSpeed);
-        _updateMeshPropertiesShader.SetFloat(ShaderIDs.LowSpeed, lowSpeed);
+        _updateMeshPropertiesShader.SetFloat(ShaderIDs.HighValue, highValue);
+        _updateMeshPropertiesShader.SetFloat(ShaderIDs.LowValue, lowValue);
         _updateMeshPropertiesShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
         _updateMeshPropertiesShader.SetVector(ShaderIDs.ParticleScale, new Vector4(particleRadius, particleRadius, particleRadius));
         _updateMeshPropertiesShader.SetMatrix(ShaderIDs.SimTRS, transform.localToWorldMatrix);
+        _updateMeshPropertiesShader.SetBool(ShaderIDs.ColorDensity, colorDensity);
 
         _updateMeshPropertiesShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
         _updateMeshPropertiesShader.SetTexture(0, ShaderIDs.FluidParticleVelocityTexture, _fluidParticleVelocityTextures[Read]);
+        _updateMeshPropertiesShader.SetTexture(0, ShaderIDs.FluidParticleDensityTexture, _fluidParticleDensityTexture);
         _updateMeshPropertiesShader.SetBuffer(0, ShaderIDs.Properties, _particleMeshPropertiesBuffer);
 
         _updateMeshPropertiesShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
