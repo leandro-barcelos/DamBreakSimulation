@@ -40,15 +40,13 @@ public class Simulation : MonoBehaviour
     public float totalTailingVolume;
     [Min(0.01f)] public float initialParticleSpacing = 10;
     [Header("Parameters")]
-    [Range(0f, 10f)] public float viscosity = 1.0016f;
+    [Range(0f, 100f)] public float viscosity = 1.0016f;
     [Range(0f, 5000f)] public float restDensity = 4900f;
     [Range(1f, 5000f)] public float gasConstant = 500f;
     [Range(0f, 10000f)] public float stiffnessCoefficient = 5000.0f;
-    [Range(0f, 1f)] public float coefficientOfRestitution = 0.7f;
-    public float fluidElasticModulo = 2.15e9f;
-    public float wallElasticModulo = 10e9f;
-    public float fluidPoissonRatio = 0.5f;
-    public float wallPoissonRatio = 0.25f;
+    [Range(float.Epsilon, 1f)] public float coefficientOfRestitution = 0.7f;
+    [Range(0f, 10f)] public float friction = 0.7f;
+    [Range(0.001f, 5f)] public float timeStep = 1f / 60f;
 
     [Header("Rendering")]
     public float occlusionRange;
@@ -74,7 +72,6 @@ public class Simulation : MonoBehaviour
     private int _fluidParticleTextureResolution;
     private float _effectiveRadius;
     private float _particleMass;
-    private float _elasticPoissonRatio;
     private float _dampingCoefficient;
 
     // Wall
@@ -128,10 +125,8 @@ public class Simulation : MonoBehaviour
 
         UpdateWallMeshProperties();
 
-        _elasticPoissonRatio = (1 - fluidPoissonRatio * fluidPoissonRatio) / fluidElasticModulo + (1 - wallPoissonRatio * wallPoissonRatio) / wallElasticModulo;
-
         // Then calculate damping coefficient:
-        float alphaD = 0.5f; // Depends on contact stiffness
+        float alphaD = 0.7f; // Depends on contact stiffness
         _dampingCoefficient = -Mathf.Log(coefficientOfRestitution) /
             (alphaD * Mathf.Sqrt(Mathf.Pow(Mathf.Log(coefficientOfRestitution), 2) +
             Mathf.Pow(Mathf.PI, 2)));
@@ -142,8 +137,8 @@ public class Simulation : MonoBehaviour
         BucketGeneration();
         DensityCalculation();
 
-        for (var i = 0; i < 5; i++)
-            UpdateVelocityAndPosition(Time.deltaTime / 25);
+        for (var i = 0; i < 10; i++)
+            UpdateVelocityAndPosition(timeStep / 100);
 
         UpdateFluidMeshProperties();
 
@@ -284,48 +279,48 @@ public class Simulation : MonoBehaviour
             }
         }
 
-        Bounds damBound = new(dam.transform.localPosition, dam.transform.localScale);
-        Quaternion damRotation = dam.transform.localRotation;
+        // Bounds damBound = new(dam.transform.localPosition, dam.transform.localScale);
+        // Quaternion damRotation = dam.transform.localRotation;
 
-        xLength = damBound.size.x > damBound.size.z ? damBound.size.x : 1.0f;
-        float yLength = damBound.size.y;
-        zLength = xLength == 1.0 ? damBound.size.z : 1.0f;
+        // xLength = damBound.size.x > damBound.size.z ? damBound.size.x : 1.0f;
+        // float yLength = damBound.size.y;
+        // zLength = xLength == 1.0 ? damBound.size.z : 1.0f;
 
-        xCount = Mathf.Max(Mathf.FloorToInt(xLength / initialParticleSpacing), 1);
-        int yCount = Mathf.FloorToInt(yLength / initialParticleSpacing);
-        zCount = Mathf.Max(Mathf.FloorToInt(zLength / initialParticleSpacing), 1);
+        // xCount = Mathf.Max(Mathf.FloorToInt(xLength / initialParticleSpacing), 1);
+        // int yCount = Mathf.FloorToInt(yLength / initialParticleSpacing);
+        // zCount = Mathf.Max(Mathf.FloorToInt(zLength / initialParticleSpacing), 1);
 
-        startPos = damBound.min;
+        // startPos = damBound.min;
 
-        // Create particles within the bounds
-        for (int x = 0; x < xCount; x++)
-        {
-            for (int y = 0; y < yCount; y++)
-            {
-                for (int z = 0; z < zCount; z++)
-                {
-                    Vector3 pos = startPos + new Vector3(
-                        x * initialParticleSpacing + initialParticleSpacing * 0.5f,
-                        y * initialParticleSpacing + initialParticleSpacing * 0.5f,
-                        z * initialParticleSpacing + initialParticleSpacing * 0.5f);
+        // // Create particles within the bounds
+        // for (int x = 0; x < xCount; x++)
+        // {
+        //     for (int y = 0; y < yCount; y++)
+        //     {
+        //         for (int z = 0; z < zCount; z++)
+        //         {
+        //             Vector3 pos = startPos + new Vector3(
+        //                 x * initialParticleSpacing + initialParticleSpacing * 0.5f,
+        //                 y * initialParticleSpacing + initialParticleSpacing * 0.5f,
+        //                 z * initialParticleSpacing + initialParticleSpacing * 0.5f);
 
-                    // Rotate position according to the tailing area's rotation
-                    Vector3 localPos = pos - damBound.center;
-                    Vector3 rotatedPos = damRotation * localPos;
-                    pos = rotatedPos + damBound.center;
+        //             // Rotate position according to the tailing area's rotation
+        //             Vector3 localPos = pos - damBound.center;
+        //             Vector3 rotatedPos = damRotation * localPos;
+        //             pos = rotatedPos + damBound.center;
 
-                    Vector2 uv = new(
-                            (pos.x - _simulationBounds.min.x) / _simulationBounds.size.x,
-                            (pos.z - _simulationBounds.min.z) / _simulationBounds.size.z);
+        //             Vector2 uv = new(
+        //                     (pos.x - _simulationBounds.min.x) / _simulationBounds.size.x,
+        //                     (pos.z - _simulationBounds.min.z) / _simulationBounds.size.z);
 
-                    // Skip positions that are below the terrain elevation
-                    float elevation = mapLoader.SampleElevation(uv.x, uv.y);
-                    if (pos.y < elevation) continue;
+        //             // Skip positions that are below the terrain elevation
+        //             float elevation = mapLoader.SampleElevation(uv.x, uv.y);
+        //             if (pos.y < elevation) continue;
 
-                    particlePositions.Add(pos);
-                }
-            }
-        }
+        //             particlePositions.Add(pos);
+        //         }
+        //     }
+        // }
 
         // Save the number of particles for later use
         _wallParticleCount = particlePositions.Count;
@@ -548,10 +543,8 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
         _velPosShader.SetFloat(ShaderIDs.MaxElevation, mapLoader.maxElevation);
         _velPosShader.SetFloat(ShaderIDs.MinElevation, mapLoader.minElevation);
-        _velPosShader.SetFloat(ShaderIDs.HalfInitialParticleSpacing, initialParticleSpacing / 2f);
         _velPosShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
-        _velPosShader.SetVector(ShaderIDs.ElevationResolution, mapLoader.elevationTexture.Size());
-        _velPosShader.SetFloat(ShaderIDs.ElasticPoissonRatio, _elasticPoissonRatio);
+        _velPosShader.SetFloat(ShaderIDs.Mu, friction);
 
         _velPosShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
 

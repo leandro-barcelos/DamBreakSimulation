@@ -25,7 +25,6 @@ uint _ParticleCount;
 uint _FluidParticleCount;
 float _EffectiveRadius;
 float _EffectiveRadius6;
-float _HalfInitialParticleSpacing;
 float _ParticleMass;
 float _TimeStep;
 float _Viscosity;
@@ -35,13 +34,12 @@ float _StiffnessCoeff;
 float _DampingCoeff;
 float2 _FluidParticleResolution;
 float2 _WallParticleResolution;
-float2 _ElevationResolution;
 uint3 _BucketResolution;
 float3 _Min;
 float3 _Max;
 float _MinElevation;
 float _MaxElevation;
-float _ElasticPoissonRatio;
+float _Mu;
 
 float3 grad_W_press(float3 r){
     const float c = 45.0 / PI;
@@ -142,63 +140,71 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                     float3 pos_j = _WallParticlePositionTexture[j_2d].xyz;
                     float3 pos_ij = pos_i - pos_j;
                     float dist = length(pos_ij);
-                    float pen_dist = _HalfInitialParticleSpacing - dist;
+                    float pen_dist = _EffectiveRadius - dist;
 
-                    if (pen_dist > epsilon) 
+                    float3 normal = get_surface_normal(pos_i);
+
+                    // First, define boundary zone thickness (could be a parameter)
+                    // As per paper: d_dummy = h (kernel support radius) for current time step
+                    // or d_dummy = 0.5h for half time step
+                    float d_dummy = _EffectiveRadius;
+
+                    // Calculate distance from particle to boundary surface
+                    float d_soil = dist; // Assuming 'dist' is distance to boundary surface
+
+                    // Calculate beta' factor
+                    float beta_prime = d_dummy / max(d_soil, epsilon);
+
+                    // Calculate relative velocity (for static wall, v_w = 0)
+                    float3 delta_v_i = -vel_in_i.xyz; // Negative because we're using v_i - v_w and v_w = 0
+
+                    // Only apply force if within boundary zone AND moving toward boundary
+                    if (pen_dist > epsilon && dot(vel_in_i.xyz, normal) < 0.0)
                     {
-                        // Use wall-to-fluid normal direction
-                        float3 normal_dir = normalize(pos_ij);
+                        // Calculate normal component of relative velocity
+                        float3 delta_v_n_i = dot(delta_v_i, normal) * normal;
                         
-                        // Correct beta calculation
-                        float beta = _HalfInitialParticleSpacing / max(dist, epsilon);
+                        // Apply energy dissipation
+                        float3 modified_normal_vel = beta_prime * (1.0 - _DampingCoeff) * delta_v_n_i;
                         
-                        // Correct KC calculation
-                        float k_c = 4.0 / 3.0 * pow(pen_dist * _EffectiveRadius, 0.5) / _ElasticPoissonRatio;
+                        // Calculate tangential component of relative velocity
+                        float3 delta_v_s_i = delta_v_i - delta_v_n_i;
                         
-                        // Calculate normal velocity component
-                        float3 v_i_n = dot(vel_in_i.xyz, normal_dir) * normal_dir;
+                        // Apply friction for tangential component
+                        float f_n_magnitude = length((2.0 * _ParticleMass * modified_normal_vel) / _TimeStep);
+                        float f_s_magnitude = length((2.0 * _ParticleMass * delta_v_s_i) / _TimeStep);
                         
-                        // Calculate tangential velocity component
-                        float3 v_i_t = vel_in_i.xyz - v_i_n;
-                        
-                        // Normal force
-                        float3 f_normal = beta * (k_c * pen_dist) * normal_dir - _DampingCoeff * _ParticleMass * (v_i_n / _TimeStep);
-                        
-                        // Tangential force (friction)
-                        float3 f_tangential = 2.0 * _ParticleMass * v_i_t / (_TimeStep * _TimeStep);
-                        
-                        // Apply Coulomb friction (missing in your implementation)
-                        float normal_force_mag = length(f_normal);
-                        float tangential_force_mag = length(f_tangential);
-                        float mu = 0.5; // Friction coefficient - should be a parameter
-                        
-                        if (tangential_force_mag > mu * normal_force_mag) {
-                            f_tangential = normalize(f_tangential) * mu * normal_force_mag;
+                        if (f_s_magnitude > _Mu * f_n_magnitude && f_n_magnitude > epsilon)
+                        {
+                            delta_v_s_i *= _Mu * (f_n_magnitude / f_s_magnitude);
                         }
                         
+                        // Calculate boundary forces
+                        float3 f_normal = (2.0 * _ParticleMass * modified_normal_vel) / _TimeStep;
+                        float3 f_tangential = (2.0 * _ParticleMass * delta_v_s_i) / _TimeStep;
+                        
+                        // Add to boundary force
                         f_bound += f_normal + f_tangential;
                     }
-
-                    continue;
                 }
-
-                uint2 j_2d = uint2(j % uint(_FluidParticleResolution.x), j / uint(_FluidParticleResolution.x));
-
-                float rho_j = _FluidParticleDensityTexture[j_2d];
-                float p_j = _GasConst * (rho_j - _RestDensity);
-                float3 pos_j = _FluidParticlePositionTexture[j_2d].xyz;
-                float3 pos_ij = pos_i - pos_j;
-                // Prevent division by zero in force calculations
-                if (rho_j > epsilon)
+                else
                 {
-                    f_press += ((p_i + p_j) / (2.0 * rho_j)) * grad_W_press(pos_ij);
-                    f_vis += ((_FluidParticleVelocityTexture[j_2d].xyz - vel_in_i.xyz) / rho_j) * grad_W_vis(pos_ij);
+                    uint2 j_2d = uint2(j % uint(_FluidParticleResolution.x), j / uint(_FluidParticleResolution.x));
+
+                    float rho_j = _FluidParticleDensityTexture[j_2d];
+                    float p_j = _GasConst * (rho_j - _RestDensity);
+                    float3 pos_j = _FluidParticlePositionTexture[j_2d].xyz;
+                    float3 pos_ij = pos_i - pos_j;
+                    // Prevent division by zero in force calculations
+                    if (rho_j > epsilon)
+                    {
+                        f_press += ((p_i + p_j) / (2.0 * rho_j)) * grad_W_press(pos_ij);
+                        f_vis += ((_FluidParticleVelocityTexture[j_2d].xyz - vel_in_i.xyz) / rho_j) * grad_W_vis(pos_ij);
+                    }
                 }
             }
         }
     }
-
-    f_bound *= +_ParticleMass;
 
     // Prevent division by zero in final force calculations
     if (rho_i > epsilon)
@@ -207,44 +213,14 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         f_vis *= _Viscosity * _ParticleMass * _ParticleMass / rho_i;
     }
 
-    float3 f_wall = 0.0;
-    float3 r = 0.0;
-
-    float left = _Min.x + _EffectiveRadius;
-    float right = _Max.x - _EffectiveRadius;
-    float bottom = _Min.y + _EffectiveRadius;
-    float top = _Max.y - _EffectiveRadius;
-    float front = _Min.z + _EffectiveRadius;
-    float back = _Max.z - _EffectiveRadius;
-
-    if(pos_i.x < left) 
-        r.x += left - pos_i.x;
-    else if(pos_i.x > right) 
-        r.x += right - pos_i.x;
-
-    if(pos_i.y < bottom) 
-        r.y += bottom - pos_i.y;
-    else if(pos_i.y > top) 
-        r.y += top - pos_i.y;
-
-    if(pos_i.z < front) 
-        r.z += front - pos_i.z;
-    else if(pos_i.z > back) 
-        r.z += back - pos_i.z;
-        
-    float3 abs_r = abs(r);
-    float max_r = max(abs_r.x, max(abs_r.y, abs_r.z));
-
-    if(max_r > 0)
-    {
-        f_wall = r * _StiffnessCoeff;
-        f_wall *= _ParticleMass;
-    }
-
-    float3 a_i = a_gravity + (float3(f_press + f_vis) + f_wall + f_bound) / _ParticleMass;
+    float3 a_i = a_gravity + (float3(f_press + f_vis) + f_bound) / _ParticleMass;
     float4 vel_out_i = vel_in_i + float4(a_i * _TimeStep, 1.0);
 
     float4 pos_out_i = float4(pos_i, 1.0) + _TimeStep * vel_out_i;
+
+    float elevation = get_elevation(pos_out_i.xyz);
+    pos_out_i.y = max(pos_out_i.y, elevation);
+
     pos_out_i = clamp(pos_out_i, float4(_Min, 1.0), float4(_Max, 1.0));
     
     _FluidParticleVelocityTextureWrite[id.xy] = vel_out_i;
