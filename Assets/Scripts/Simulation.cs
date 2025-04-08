@@ -40,7 +40,7 @@ public class Simulation : MonoBehaviour
     public float totalTailingVolume;
     [Min(0.01f)] public float initialParticleSpacing = 10;
     [Header("Parameters")]
-    [Range(0f, 100f)] public float viscosity = 1.0016f;
+    [Range(0f, 10000f)] public float viscosity = 1.0016f;
     [Range(0f, 5000f)] public float restDensity = 4900f;
     [Range(1f, 5000f)] public float gasConstant = 500f;
     [Range(0f, 10000f)] public float stiffnessCoefficient = 5000.0f;
@@ -498,7 +498,6 @@ public class Simulation : MonoBehaviour
         // Set shader parameters
         _densityShader.SetTexture(0, ShaderIDs.FluidParticleDensityTexture, _fluidParticleDensityTexture);
         _densityShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
-        _densityShader.SetTexture(0, ShaderIDs.WallParticlePositionTexture, _wallParticlePositionTexture);
         _densityShader.SetBuffer(0, ShaderIDs.Bucket, _bucketBuffer);
 
         _densityShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
@@ -508,7 +507,6 @@ public class Simulation : MonoBehaviour
         _densityShader.SetFloat(ShaderIDs.EffectiveRadius2, _effectiveRadius * _effectiveRadius);
         _densityShader.SetFloat(ShaderIDs.EffectiveRadius9, Mathf.Pow(_effectiveRadius, 9));
         _densityShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
-        _densityShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
         _densityShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _densityShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
 
