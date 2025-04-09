@@ -36,14 +36,17 @@ public class Simulation : MonoBehaviour
 
     [Header("Initialization")]
     public GameObject tailingArea;
+    public GameObject dam;
     public float totalTailingVolume;
     [Min(0.01f)] public float initialParticleSpacing = 10;
     [Header("Parameters")]
-    [Range(0f, 10f)] public float viscosity = 0.01f;
-    [Range(0f, 5000f)] public float restDensity = 1.5f;
-    [Range(1f, 5000f)] public float gasConstant = 150.0f;
+    [Range(0f, 10000f)] public float viscosity = 1.0016f;
+    [Range(0f, 5000f)] public float restDensity = 4900f;
+    [Range(1f, 5000f)] public float gasConstant = 500f;
     [Range(0f, 10000f)] public float stiffnessCoefficient = 5000.0f;
-    [Range(1f, 50f)] public float dampingCoefficient = 10.0f;
+    [Range(float.Epsilon, 1f)] public float coefficientOfRestitution = 0.7f;
+    [Range(0f, 10f)] public float friction = 0.7f;
+    [Range(0.001f, 5f)] public float timeStep = 1f / 60f;
 
     [Header("Rendering")]
     public float occlusionRange;
@@ -51,8 +54,9 @@ public class Simulation : MonoBehaviour
     public Material particleMaterial;
     public bool renderParticles;
     public bool renderWallParticles = false;
-    [Range(0f, 10000f)] public float lowSpeed;
-    [Range(0f, 10000f)] public float highSpeed;
+    public bool colorDensity = false;
+    [Range(0f, 10000f)] public float lowValue;
+    [Range(0f, 10000f)] public float highValue;
 
     [Header("Map Generation")]
     public GameObject mapGameObject;
@@ -68,6 +72,7 @@ public class Simulation : MonoBehaviour
     private int _fluidParticleTextureResolution;
     private float _effectiveRadius;
     private float _particleMass;
+    private float _dampingCoefficient;
 
     // Wall
     private int _wallParticleCount;
@@ -85,7 +90,7 @@ public class Simulation : MonoBehaviour
     private Bounds _bounds;
 
     // Shaders
-    private ComputeShader _bucketShader, _clearShader, _densityShader, _velPosShader, _updateMeshPropertiesShader, _initParticlesShader;
+    private ComputeShader _bucketShader, _clearShader, _densityShader, _velPosShader, _updateMeshPropertiesShader;
     private int _fluidThreadGroups, _wallThreadGroups;
 
     //Map
@@ -119,6 +124,12 @@ public class Simulation : MonoBehaviour
         InitializeBucketBuffer();
 
         UpdateWallMeshProperties();
+
+        // Then calculate damping coefficient:
+        float alphaD = 0.7f; // Depends on contact stiffness
+        _dampingCoefficient = -Mathf.Log(coefficientOfRestitution) /
+            (alphaD * Mathf.Sqrt(Mathf.Pow(Mathf.Log(coefficientOfRestitution), 2) +
+            Mathf.Pow(Mathf.PI, 2)));
     }
 
     void Update()
@@ -126,8 +137,8 @@ public class Simulation : MonoBehaviour
         BucketGeneration();
         DensityCalculation();
 
-        for (var i = 0; i < 5; i++)
-            UpdateVelocityAndPosition(Time.deltaTime / 25);
+        for (var i = 0; i < 10; i++)
+            UpdateVelocityAndPosition(timeStep / 100);
 
         UpdateFluidMeshProperties();
 
@@ -160,16 +171,12 @@ public class Simulation : MonoBehaviour
 
     private List<Vector3> InitFluidParticles()
     {
-        Bounds tailingBounds = new(tailingArea.transform.position, tailingArea.transform.localScale);
+        Bounds tailingBounds = new(tailingArea.transform.localPosition, tailingArea.transform.localScale);
+        Bounds damBounds = new(dam.transform.localPosition, dam.transform.localScale);
         Quaternion tailingRotation = tailingArea.transform.localRotation;
+        dam.transform.localRotation = tailingRotation;
 
-        // Get bounds from the mesh renderer
-        if (!mapGameObject.TryGetComponent<Renderer>(out var mapRenderer))
-        {
-            Debug.LogError("No Renderer found on mapGameObject!");
-        }
-
-        Bounds mapBounds = mapRenderer ? mapRenderer.bounds : new Bounds(mapGameObject.transform.position, Vector3.one);
+        Bounds mapBounds = mapGameObject.GetComponent<Renderer>().bounds;
 
         // Adjust the y scale based on elevation data from mapLoader
         Vector3 mapScale = new(
@@ -232,7 +239,7 @@ public class Simulation : MonoBehaviour
         _particleMass = totalMass / _fluidParticleCount;
         Debug.Log($"Particle mass is {_particleMass}kg");
 
-        _effectiveRadius = initialParticleSpacing + 1.0f;
+        _effectiveRadius = initialParticleSpacing * 1.2f;
         _bucketResolution = Vector3Int.CeilToInt(_simulationBounds.size / _effectiveRadius);
 
         return particlePositions;
@@ -247,7 +254,7 @@ public class Simulation : MonoBehaviour
         int xCount = Mathf.FloorToInt(xLength / initialParticleSpacing);
         int zCount = Mathf.FloorToInt(zLength / initialParticleSpacing);
 
-        Vector2 startPos = new(_simulationBounds.min.x, _simulationBounds.min.z);
+        Vector3 startPos = new(_simulationBounds.min.x, _simulationBounds.min.z);
         List<Vector3> particlePositions = new();
 
         // Create particles within the bounds
@@ -255,7 +262,7 @@ public class Simulation : MonoBehaviour
         {
             for (int z = 0; z < zCount; z++)
             {
-                Vector2 pos_2d = startPos + new Vector2(
+                Vector2 pos_2d = (Vector2)startPos + new Vector2(
                     x * initialParticleSpacing + initialParticleSpacing * 0.5f,
                     z * initialParticleSpacing + initialParticleSpacing * 0.5f);
 
@@ -271,6 +278,49 @@ public class Simulation : MonoBehaviour
                 particlePositions.Add(pos);
             }
         }
+
+        // Bounds damBound = new(dam.transform.localPosition, dam.transform.localScale);
+        // Quaternion damRotation = dam.transform.localRotation;
+
+        // xLength = damBound.size.x > damBound.size.z ? damBound.size.x : 1.0f;
+        // float yLength = damBound.size.y;
+        // zLength = xLength == 1.0 ? damBound.size.z : 1.0f;
+
+        // xCount = Mathf.Max(Mathf.FloorToInt(xLength / initialParticleSpacing), 1);
+        // int yCount = Mathf.FloorToInt(yLength / initialParticleSpacing);
+        // zCount = Mathf.Max(Mathf.FloorToInt(zLength / initialParticleSpacing), 1);
+
+        // startPos = damBound.min;
+
+        // // Create particles within the bounds
+        // for (int x = 0; x < xCount; x++)
+        // {
+        //     for (int y = 0; y < yCount; y++)
+        //     {
+        //         for (int z = 0; z < zCount; z++)
+        //         {
+        //             Vector3 pos = startPos + new Vector3(
+        //                 x * initialParticleSpacing + initialParticleSpacing * 0.5f,
+        //                 y * initialParticleSpacing + initialParticleSpacing * 0.5f,
+        //                 z * initialParticleSpacing + initialParticleSpacing * 0.5f);
+
+        //             // Rotate position according to the tailing area's rotation
+        //             Vector3 localPos = pos - damBound.center;
+        //             Vector3 rotatedPos = damRotation * localPos;
+        //             pos = rotatedPos + damBound.center;
+
+        //             Vector2 uv = new(
+        //                     (pos.x - _simulationBounds.min.x) / _simulationBounds.size.x,
+        //                     (pos.z - _simulationBounds.min.z) / _simulationBounds.size.z);
+
+        //             // Skip positions that are below the terrain elevation
+        //             float elevation = mapLoader.SampleElevation(uv.x, uv.y);
+        //             if (pos.y < elevation) continue;
+
+        //             particlePositions.Add(pos);
+        //         }
+        //     }
+        // }
 
         // Save the number of particles for later use
         _wallParticleCount = particlePositions.Count;
@@ -307,7 +357,6 @@ public class Simulation : MonoBehaviour
         _densityShader = Resources.Load<ComputeShader>("Density");
         _velPosShader = Resources.Load<ComputeShader>("VelPos");
         _updateMeshPropertiesShader = Resources.Load<ComputeShader>("UpdateMeshProperties");
-        _initParticlesShader = Resources.Load<ComputeShader>("InitParticles");
     }
 
     private void CreateFluidParticleTextures(List<Vector3> positions)
@@ -449,7 +498,6 @@ public class Simulation : MonoBehaviour
         // Set shader parameters
         _densityShader.SetTexture(0, ShaderIDs.FluidParticleDensityTexture, _fluidParticleDensityTexture);
         _densityShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
-        _densityShader.SetTexture(0, ShaderIDs.WallParticlePositionTexture, _wallParticlePositionTexture);
         _densityShader.SetBuffer(0, ShaderIDs.Bucket, _bucketBuffer);
 
         _densityShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
@@ -459,7 +507,6 @@ public class Simulation : MonoBehaviour
         _densityShader.SetFloat(ShaderIDs.EffectiveRadius2, _effectiveRadius * _effectiveRadius);
         _densityShader.SetFloat(ShaderIDs.EffectiveRadius9, Mathf.Pow(_effectiveRadius, 9));
         _densityShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
-        _densityShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
         _densityShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _densityShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
 
@@ -488,13 +535,14 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetFloat(ShaderIDs.GasConst, gasConstant);
         _velPosShader.SetFloat(ShaderIDs.RestDensity, restDensity);
         _velPosShader.SetFloat(ShaderIDs.StiffnessCoeff, stiffnessCoefficient);
-        _velPosShader.SetFloat(ShaderIDs.DampingCoeff, dampingCoefficient);
+        _velPosShader.SetFloat(ShaderIDs.DampingCoeff, _dampingCoefficient);
         _velPosShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
-        _velPosShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
         _velPosShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _velPosShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
         _velPosShader.SetFloat(ShaderIDs.MaxElevation, mapLoader.maxElevation);
         _velPosShader.SetFloat(ShaderIDs.MinElevation, mapLoader.minElevation);
+        _velPosShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
+        _velPosShader.SetFloat(ShaderIDs.Mu, friction);
 
         _velPosShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
 
@@ -505,14 +553,16 @@ public class Simulation : MonoBehaviour
     private void UpdateFluidMeshProperties()
     {
         _updateMeshPropertiesShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
-        _updateMeshPropertiesShader.SetFloat(ShaderIDs.HighSpeed, highSpeed);
-        _updateMeshPropertiesShader.SetFloat(ShaderIDs.LowSpeed, lowSpeed);
+        _updateMeshPropertiesShader.SetFloat(ShaderIDs.HighValue, highValue);
+        _updateMeshPropertiesShader.SetFloat(ShaderIDs.LowValue, lowValue);
         _updateMeshPropertiesShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
         _updateMeshPropertiesShader.SetVector(ShaderIDs.ParticleScale, new Vector4(particleRadius, particleRadius, particleRadius));
         _updateMeshPropertiesShader.SetMatrix(ShaderIDs.SimTRS, transform.localToWorldMatrix);
+        _updateMeshPropertiesShader.SetBool(ShaderIDs.ColorDensity, colorDensity);
 
         _updateMeshPropertiesShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
         _updateMeshPropertiesShader.SetTexture(0, ShaderIDs.FluidParticleVelocityTexture, _fluidParticleVelocityTextures[Read]);
+        _updateMeshPropertiesShader.SetTexture(0, ShaderIDs.FluidParticleDensityTexture, _fluidParticleDensityTexture);
         _updateMeshPropertiesShader.SetBuffer(0, ShaderIDs.Properties, _particleMeshPropertiesBuffer);
 
         _updateMeshPropertiesShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);

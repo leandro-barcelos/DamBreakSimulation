@@ -8,16 +8,18 @@ struct MeshProperties {
 RWStructuredBuffer<MeshProperties> _Properties;
 Texture2D<float4> _FluidParticlePositionTexture;
 Texture2D<float4> _FluidParticleVelocityTexture;
+Texture2D<float> _FluidParticleDensityTexture;
 Texture2D<float4> _WallParticlePositionTexture;
 
 uint _FluidParticleCount;
 uint _WallParticleCount;
-float _LowSpeed;
-float _HighSpeed;
+float _LowValue;
+float _HighValue;
 float2 _FluidParticleResolution;
 float2 _WallParticleResolution;
 float3 _ParticleScale;
 float4x4 _SimTRS;
+bool _ColorDensity;
 bool _IsVisible;
 
 #pragma kernel FluidParticles
@@ -37,6 +39,7 @@ void FluidParticles (uint3 id : SV_DispatchThreadID)
     // Sample position and density
     float4 position = _FluidParticlePositionTexture[id.xy];
     float speed = length(_FluidParticleVelocityTexture[id.xy].xyz);
+    float density = _FluidParticleDensityTexture[id.xy];
 
     // Extract simulation area scale (diagonal elements of _SimTRS)
     float3 simScale = float3(_SimTRS._m00, _SimTRS._m11, _SimTRS._m22);
@@ -67,7 +70,11 @@ void FluidParticles (uint3 id : SV_DispatchThreadID)
     _Properties[id_1d].mat = mul(translation, scale);
 
     // Set color based on speed
-    float t = saturate((speed - _LowSpeed) / (_HighSpeed - _LowSpeed));
+    float t = 0.0;
+    if (_ColorDensity)
+        t = saturate((density - _LowValue) / (_HighValue - _LowValue));
+    else
+        t = saturate((speed - _LowValue) / (_HighValue - _LowValue));
     _Properties[id_1d].color = lerp(float4(0, 0, 1, 1), float4(1, 0, 0, 1), t);
 }
 

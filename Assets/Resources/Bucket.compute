@@ -34,9 +34,6 @@ void Fluid(uint3 id : SV_DispatchThreadID)
 
     float3 pos = _FluidParticlePositionTexture[id.xy].xyz;
     float3 idx_3d = int3((pos - _Min) / (_Max - _Min) * (_BucketResolution - 1));
-    // Ensure that idx_3d is within valid bounds
-    if (any(idx_3d < 0) || any(idx_3d >= _BucketResolution))
-        return;
     uint index = idx_3d.x + idx_3d.y * _BucketResolution.x + idx_3d.z * _BucketResolution.x * _BucketResolution.y;
     index *= MAX_PARTICLES_PER_VOXEL;
     for (uint j = 0; j < MAX_PARTICLES_PER_VOXEL; j++)
