@@ -1,11 +1,11 @@
 #define NUM_THREADS 32
 #define MAX_PARTICLES_PER_VOXEL 8
-#define MAX_BINARY_SEARCH_STEPS 5
 #define POW3(x) ((x)*(x)*(x))
 
 static const float epsilon = 1e-6;
 static const float PI = 3.14159265358979323846264338327950288;
 static const float3 a_gravity = float3(0.0, -9.8, 0.0);
+static const float D = 90000;
 
 #pragma enable_d3d11_debug_symbols
 
@@ -13,6 +13,7 @@ static const float3 a_gravity = float3(0.0, -9.8, 0.0);
 RWTexture2D<float4> _FluidParticlePositionTextureWrite;
 RWTexture2D<float4> _FluidParticleVelocityTextureWrite;
 Texture2D<float4> _FluidParticlePositionTexture;
+Texture2D<float4> _WallParticlePositionTexture;
 Texture2D<float4> _FluidParticleVelocityTexture;
 Texture2D<float> _FluidParticleDensityTexture;
 Texture2D<float4> _ElevationTexture;
