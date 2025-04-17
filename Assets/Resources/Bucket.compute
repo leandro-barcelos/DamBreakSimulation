@@ -1,5 +1,4 @@
-#define NUM_THREADS 32
-#define MAX_PARTICLES_PER_VOXEL 8
+#include "shaderDefs.cginc"
 
 #pragma enable_d3d11_debug_symbols
 
