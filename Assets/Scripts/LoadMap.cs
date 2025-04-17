@@ -49,16 +49,16 @@ public class LoadMap : MonoBehaviour
         List<Vector2> uvs = new();
 
         // Generate surface mesh
-        float offset = 30 * 0.5f * resolution;
+        float offset = scale * 0.5f * resolution;
         for (var i = 0; i < resolution; i++)
         {
             for (var j = 0; j < resolution; j++)
             {
                 vertices.Add(new Vector3(
-                    i * 30 - offset,
+                    i * scale - offset,
                     SampleElevation(i, j),
-                    j * 30 - offset
-                ) / (resolution * 30));
+                    j * scale - offset
+                ) / (resolution * scale));
 
                 uvs.Add(new Vector2((float)i / (resolution - 1), (float)j / (resolution - 1)));
             }
