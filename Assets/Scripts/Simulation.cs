@@ -47,6 +47,7 @@ public class Simulation : MonoBehaviour
     [Range(float.Epsilon, 1f)] public float coefficientOfRestitution = 0.7f;
     [Range(0f, 10f)] public float friction = 0.7f;
     [Range(0.001f, 5f)] public float timeStep = 1f / 60f;
+    public NonNewtonianProperties nonNewtonianProps = new NonNewtonianProperties();
 
     [Header("Rendering")]
     public float occlusionRange;
@@ -543,6 +544,10 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetFloat(ShaderIDs.MinElevation, mapLoader.minElevation);
         _velPosShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
         _velPosShader.SetFloat(ShaderIDs.Mu, friction);
+        _velPosShader.SetInt(ShaderIDs.NonNewtonianModel, (int)nonNewtonianProps.model);
+        _velPosShader.SetFloat(ShaderIDs.PowerLawExponent, nonNewtonianProps.powerLawExponent);
+        _velPosShader.SetFloat(ShaderIDs.YieldStress, nonNewtonianProps.yieldStress);
+        _velPosShader.SetFloat(ShaderIDs.SolidApproximationFactor, nonNewtonianProps.solidApproximationFactor);
 
         _velPosShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
 
