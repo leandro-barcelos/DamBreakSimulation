@@ -1,9 +1,4 @@
-#define NUM_THREADS 32
-
-struct MeshProperties {
-    float4x4 mat;
-    float4 color;
-};
+#include "shaderDefs.cginc"
 
 RWStructuredBuffer<MeshProperties> _Properties;
 Texture2D<float4> _FluidParticlePositionTexture;
