@@ -43,7 +43,6 @@ public class Simulation : MonoBehaviour
     [Range(0f, 10000f)] public float viscosity = 1.0016f;
     [Range(0f, 5000f)] public float restDensity = 4900f;
     [Range(1f, 5000f)] public float gasConstant = 500f;
-    [Range(0f, 10000f)] public float stiffnessCoefficient = 5000.0f;
     [Range(float.Epsilon, 1f)] public float coefficientOfRestitution = 0.7f;
     [Range(0f, 10f)] public float friction = 0.7f;
     [Range(0.001f, 5f)] public float timeStep = 1f / 60f;
@@ -535,7 +534,6 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetFloat(ShaderIDs.Viscosity, viscosity);
         _velPosShader.SetFloat(ShaderIDs.GasConst, gasConstant);
         _velPosShader.SetFloat(ShaderIDs.RestDensity, restDensity);
-        _velPosShader.SetFloat(ShaderIDs.StiffnessCoeff, stiffnessCoefficient);
         _velPosShader.SetFloat(ShaderIDs.DampingCoeff, _dampingCoefficient);
         _velPosShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
         _velPosShader.SetVector(ShaderIDs.Max, _simulationBounds.max);

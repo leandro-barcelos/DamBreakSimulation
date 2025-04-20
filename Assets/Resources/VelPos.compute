@@ -23,7 +23,6 @@ float _TimeStep;
 float _Viscosity;
 float _GasConst;
 float _RestDensity;
-float _StiffnessCoeff;
 float _DampingCoeff;
 float2 _FluidParticleResolution;
 float2 _WallParticleResolution;

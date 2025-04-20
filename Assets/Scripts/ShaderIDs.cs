@@ -24,7 +24,6 @@ public class ShaderIDs
     public static readonly int FluidParticlePositionTextureWrite = Shader.PropertyToID("_FluidParticlePositionTextureWrite");
     public static readonly int FluidParticleVelocityTextureWrite = Shader.PropertyToID("_FluidParticleVelocityTextureWrite");
     public static readonly int FluidParticleCount = Shader.PropertyToID("_FluidParticleCount");
-    public static readonly int StiffnessCoeff = Shader.PropertyToID("_StiffnessCoeff");
     public static readonly int DampingCoeff = Shader.PropertyToID("_DampingCoeff");
     public static readonly int SimTRS = Shader.PropertyToID("_SimTRS");
     public static readonly int HighValue = Shader.PropertyToID("_HighValue");
