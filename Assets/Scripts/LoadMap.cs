@@ -10,12 +10,13 @@ public class LoadMap : MonoBehaviour
     [Min(1)] public int scale;
     public float maxElevation;
     public float minElevation;
+    public int realResolution;
 
     private void OnEnable()
     {
         GetComponent<MeshRenderer>().material = mapMaterial;
         GenerateMesh();
-        transform.localScale = new Vector3(elevationTexture.width, elevationTexture.width, elevationTexture.height) * scale;
+        transform.localScale = realResolution * scale * Vector3.one;
     }
 
     public float SampleElevation(int x, int y)
@@ -33,12 +34,6 @@ public class LoadMap : MonoBehaviour
 
     private void GenerateMesh()
     {
-        if (elevationTexture.width != elevationTexture.height)
-        {
-            Debug.LogError("Elevation texture must be square.");
-            return;
-        }
-
         Mesh mesh = new() { name = "Map Mesh" };
 
         var resolution = Mathf.Max(elevationTexture.height, elevationTexture.width);
@@ -48,6 +43,8 @@ public class LoadMap : MonoBehaviour
         List<int> triangles = new();
         List<Vector2> uvs = new();
 
+        var ratio = (float)resolution / realResolution;
+
         // Generate surface mesh
         float offset = scale * 0.5f * resolution;
         for (var i = 0; i < resolution; i++)
@@ -56,7 +53,7 @@ public class LoadMap : MonoBehaviour
             {
                 vertices.Add(new Vector3(
                     i * scale - offset,
-                    SampleElevation(i, j),
+                    SampleElevation(i, j) * ratio,
                     j * scale - offset
                 ) / (resolution * scale));
 
