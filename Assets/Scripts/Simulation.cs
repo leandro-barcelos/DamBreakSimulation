@@ -40,13 +40,13 @@ public class Simulation : MonoBehaviour
     public float totalTailingVolume;
     [Min(0.01f)] public float initialParticleSpacing = 10;
     [Header("Parameters")]
-    [Range(0f, 10000f)] public float viscosity = 1.0016f;
-    [Range(0f, 5000f)] public float restDensity = 4900f;
-    [Range(1f, 5000f)] public float gasConstant = 500f;
-    [Range(float.Epsilon, 1f)] public float coefficientOfRestitution = 0.7f;
-    [Range(0f, 10f)] public float friction = 0.7f;
+    [Range(0f, 5000f)] public float viscosity = 750f;
+    [Range(0f, 5000f)] public float restDensity = 1400f;
+    [Range(1f, 1000f)] public float gasConstant = 250f;
+    [Range(float.Epsilon, 1f)] public float coefficientOfRestitution = 0.07f;
+    [Range(0f, 1f)] public float friction = 0.001f;
     [Range(0.001f, 5f)] public float timeStep = 1f / 60f;
-    public NonNewtonianProperties nonNewtonianProps = new NonNewtonianProperties();
+    public NonNewtonianProperties nonNewtonianProps = new();
 
     [Header("Rendering")]
     public float occlusionRange;
@@ -166,7 +166,7 @@ public class Simulation : MonoBehaviour
     {
         var cameraOrbit = Camera.main.AddComponent<CameraOrbit>();
         cameraOrbit.target = target;
-        cameraOrbit.distance = 8000;
+        cameraOrbit.distance = 6000;
     }
 
     private List<Vector3> InitFluidParticles()
