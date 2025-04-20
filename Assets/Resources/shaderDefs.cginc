@@ -3,7 +3,7 @@
 
 // Constants
 #define NUM_THREADS 32
-#define MAX_PARTICLES_PER_VOXEL 8
+#define MAX_PARTICLES_PER_VOXEL 16
 #define POW3(x) ((x)*(x)*(x))
 
 // Mathematical constants

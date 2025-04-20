@@ -8,7 +8,7 @@ public class Simulation : MonoBehaviour
     #region Constants
 
     const int NumThreads = 32;
-    const int MaxParticlesPerVoxel = 8;
+    const int MaxParticlesPerVoxel = 16;
     const int Read = 0;
     const int Write = 1;
 
