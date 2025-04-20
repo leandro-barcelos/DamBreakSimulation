@@ -171,10 +171,9 @@ public class Simulation : MonoBehaviour
 
     private List<Vector3> InitFluidParticles()
     {
-        Bounds tailingBounds = new(tailingArea.transform.localPosition, tailingArea.transform.localScale);
-        Bounds damBounds = new(dam.transform.localPosition, dam.transform.localScale);
-        Quaternion tailingRotation = tailingArea.transform.localRotation;
-        dam.transform.localRotation = tailingRotation;
+        var renderers = tailingArea.GetComponentsInChildren<Renderer>();
+
+        renderers ??= new Renderer[] { tailingArea.GetComponent<Renderer>() };
 
         Bounds mapBounds = mapGameObject.GetComponent<Renderer>().bounds;
 
@@ -189,44 +188,52 @@ public class Simulation : MonoBehaviour
 
         _simulationBounds = new(mapCenter, mapScale);
 
-        // Calculate number of particles that will fit within the bounds
-        float xLength = tailingBounds.size.x;
-        float yLength = tailingBounds.size.y;
-        float zLength = tailingBounds.size.z;
-
-        int xCount = Mathf.FloorToInt(xLength / initialParticleSpacing);
-        int yCount = Mathf.FloorToInt(yLength / initialParticleSpacing);
-        int zCount = Mathf.FloorToInt(zLength / initialParticleSpacing);
-
-        Vector3 startPos = tailingBounds.min;
         List<Vector3> particlePositions = new();
 
-        // Create particles within the bounds
-        for (int x = 0; x < xCount; x++)
+        foreach (var renderer in renderers)
         {
-            for (int y = 0; y < yCount; y++)
+            var tailingBounds = renderer.bounds;
+
+            // Calculate number of particles that will fit within the bounds
+            float xLength = tailingBounds.size.x;
+            float yLength = tailingBounds.size.y;
+            float zLength = tailingBounds.size.z;
+
+            int xCount = Mathf.FloorToInt(xLength / initialParticleSpacing);
+            int yCount = Mathf.FloorToInt(yLength / initialParticleSpacing);
+            int zCount = Mathf.FloorToInt(zLength / initialParticleSpacing);
+
+            Quaternion objectRotation = renderer.transform.rotation;
+
+            Vector3 startPos = tailingBounds.min;
+
+            // Create particles within the bounds
+            for (int x = 0; x < xCount; x++)
             {
-                for (int z = 0; z < zCount; z++)
+                for (int y = 0; y < yCount; y++)
                 {
-                    Vector3 pos = startPos + new Vector3(
-                        x * initialParticleSpacing + initialParticleSpacing * 0.5f,
-                        y * initialParticleSpacing + initialParticleSpacing * 0.5f,
-                        z * initialParticleSpacing + initialParticleSpacing * 0.5f);
+                    for (int z = 0; z < zCount; z++)
+                    {
+                        Vector3 pos = startPos + new Vector3(
+                            x * initialParticleSpacing + initialParticleSpacing * 0.5f,
+                            y * initialParticleSpacing + initialParticleSpacing * 0.5f,
+                            z * initialParticleSpacing + initialParticleSpacing * 0.5f);
 
-                    // Rotate position according to the tailing area's rotation
-                    Vector3 localPos = pos - tailingBounds.center;
-                    Vector3 rotatedPos = tailingRotation * localPos;
-                    pos = rotatedPos + tailingBounds.center;
+                        // Rotate position according to the tailing area's rotation
+                        Vector3 localPos = pos - tailingBounds.center;
+                        Vector3 rotatedPos = objectRotation * localPos;
+                        pos = rotatedPos + tailingBounds.center;
 
-                    Vector2 uv = new(
-                        (pos.x - _simulationBounds.min.x) / _simulationBounds.size.x,
-                        (pos.z - _simulationBounds.min.z) / _simulationBounds.size.z);
+                        Vector2 uv = new(
+                            (pos.x - _simulationBounds.min.x) / _simulationBounds.size.x,
+                            (pos.z - _simulationBounds.min.z) / _simulationBounds.size.z);
 
-                    // Skip positions that are below the terrain elevation
-                    float elevation = mapLoader.SampleElevation(uv.x, uv.y);
-                    if (pos.y < elevation + initialParticleSpacing) continue;
+                        // Skip positions that are below the terrain elevation
+                        float elevation = mapLoader.SampleElevation(uv.x, uv.y);
+                        if (pos.y < elevation + initialParticleSpacing) continue;
 
-                    particlePositions.Add(pos);
+                        particlePositions.Add(pos);
+                    }
                 }
             }
         }
@@ -278,49 +285,6 @@ public class Simulation : MonoBehaviour
                 particlePositions.Add(pos);
             }
         }
-
-        // Bounds damBound = new(dam.transform.localPosition, dam.transform.localScale);
-        // Quaternion damRotation = dam.transform.localRotation;
-
-        // xLength = damBound.size.x > damBound.size.z ? damBound.size.x : 1.0f;
-        // float yLength = damBound.size.y;
-        // zLength = xLength == 1.0 ? damBound.size.z : 1.0f;
-
-        // xCount = Mathf.Max(Mathf.FloorToInt(xLength / initialParticleSpacing), 1);
-        // int yCount = Mathf.FloorToInt(yLength / initialParticleSpacing);
-        // zCount = Mathf.Max(Mathf.FloorToInt(zLength / initialParticleSpacing), 1);
-
-        // startPos = damBound.min;
-
-        // // Create particles within the bounds
-        // for (int x = 0; x < xCount; x++)
-        // {
-        //     for (int y = 0; y < yCount; y++)
-        //     {
-        //         for (int z = 0; z < zCount; z++)
-        //         {
-        //             Vector3 pos = startPos + new Vector3(
-        //                 x * initialParticleSpacing + initialParticleSpacing * 0.5f,
-        //                 y * initialParticleSpacing + initialParticleSpacing * 0.5f,
-        //                 z * initialParticleSpacing + initialParticleSpacing * 0.5f);
-
-        //             // Rotate position according to the tailing area's rotation
-        //             Vector3 localPos = pos - damBound.center;
-        //             Vector3 rotatedPos = damRotation * localPos;
-        //             pos = rotatedPos + damBound.center;
-
-        //             Vector2 uv = new(
-        //                     (pos.x - _simulationBounds.min.x) / _simulationBounds.size.x,
-        //                     (pos.z - _simulationBounds.min.z) / _simulationBounds.size.z);
-
-        //             // Skip positions that are below the terrain elevation
-        //             float elevation = mapLoader.SampleElevation(uv.x, uv.y);
-        //             if (pos.y < elevation) continue;
-
-        //             particlePositions.Add(pos);
-        //         }
-        //     }
-        // }
 
         // Save the number of particles for later use
         _wallParticleCount = particlePositions.Count;
