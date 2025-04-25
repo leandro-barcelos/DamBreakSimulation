@@ -201,9 +201,9 @@ public class Simulation : MonoBehaviour
 
     private List<Vector3> InitFluidParticles()
     {
-        var renderers = tailingArea.GetComponentsInChildren<Renderer>();
+        var transforms = tailingArea.GetComponentsInChildren<Transform>();
 
-        renderers ??= new Renderer[] { tailingArea.GetComponent<Renderer>() };
+        transforms ??= new Transform[] { tailingArea.GetComponent<Transform>() };
 
         Bounds mapBounds = mapGameObject.GetComponent<Renderer>().bounds;
 
@@ -220,9 +220,9 @@ public class Simulation : MonoBehaviour
 
         List<Vector3> particlePositions = new();
 
-        foreach (var renderer in renderers)
+        foreach (var tailingTransform in transforms)
         {
-            var tailingBounds = renderer.bounds;
+            var tailingBounds = new Bounds(tailingTransform.position, tailingTransform.localScale);
 
             // Calculate number of particles that will fit within the bounds
             float xLength = tailingBounds.size.x;
@@ -233,7 +233,7 @@ public class Simulation : MonoBehaviour
             int yCount = Mathf.FloorToInt(yLength / initialParticleSpacing);
             int zCount = Mathf.FloorToInt(zLength / initialParticleSpacing);
 
-            Quaternion objectRotation = renderer.transform.rotation;
+            Quaternion objectRotation = tailingTransform.rotation;
 
             Vector3 startPos = tailingBounds.min;
 
