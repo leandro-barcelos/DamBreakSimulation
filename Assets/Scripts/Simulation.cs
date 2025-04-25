@@ -43,8 +43,8 @@ public class Simulation : MonoBehaviour
     [Range(0f, 5000f)] public float viscosity = 750f;
     [Range(0f, 5000f)] public float restDensity = 1400f;
     [Range(1f, 1000f)] public float gasConstant = 250f;
-    [Range(float.Epsilon, 1f)] public float coefficientOfRestitution = 0.07f;
-    [Range(0f, 1f)] public float friction = 0.001f;
+    [Range(0.2f / 3, 1f)] public float coefficientOfRestitution = 0.07f;
+    [Range(0f, 0.1f)] public float friction = 0.001f;
     [Range(0.001f, 5f)] public float timeStep = 1f / 60f;
     public NonNewtonianProperties nonNewtonianProps = new();
 
@@ -76,6 +76,8 @@ public class Simulation : MonoBehaviour
     private float _effectiveRadius;
     private float _particleMass;
     private float _dampingCoefficient;
+    private float _lastCoefficientOfRestitution;
+
     // Map
     private RenderTexture _markerTexture;
 
@@ -107,6 +109,16 @@ public class Simulation : MonoBehaviour
 
     #region Unity Functions
 
+    void OnValidate()
+    {
+        // Check if coefficient of restitution value has changed
+        if (_lastCoefficientOfRestitution != coefficientOfRestitution)
+        {
+            UpdateDampingCoefficient();
+            _lastCoefficientOfRestitution = coefficientOfRestitution;
+        }
+    }
+
     void Start()
     {
         mapLoader = mapGameObject.GetComponent<LoadMap>();
@@ -130,10 +142,10 @@ public class Simulation : MonoBehaviour
 
         UpdateWallMeshProperties();
 
-        // Then calculate damping coefficient:
-        float alphaD = 0.7f; // Depends on contact stiffness
-        _dampingCoefficient = -Mathf.Log(coefficientOfRestitution) /
-            (alphaD * Mathf.Sqrt(Mathf.Pow(Mathf.Log(coefficientOfRestitution), 2) +
+        // Initialize the coefficient of restitution and damping coefficient
+        _lastCoefficientOfRestitution = coefficientOfRestitution;
+        UpdateDampingCoefficient();
+
         _markerTexture = CreateRenderTexture2D(mapLoader.elevationTexture.width * mapLoader.scale, mapLoader.elevationTexture.height * mapLoader.scale, RenderTextureFormat.ARGBFloat);
     }
 
@@ -435,6 +447,15 @@ public class Simulation : MonoBehaviour
         // Initialize bucket buffer with maximum possible particles per cell
         var totalBucketSize = _bucketResolution.x * _bucketResolution.y * _bucketResolution.z * MaxParticlesPerVoxel;
         _bucketBuffer = new ComputeBuffer(totalBucketSize, sizeof(uint));
+    }
+
+    private void UpdateDampingCoefficient()
+    {
+        float alphaD = 0.7f; // Depends on contact stiffness
+
+        _dampingCoefficient = -Mathf.Log(coefficientOfRestitution) /
+            (alphaD * Mathf.Sqrt(Mathf.Pow(Mathf.Log(coefficientOfRestitution), 2) +
+            Mathf.Pow(Mathf.PI, 2)));
     }
 
     #endregion
