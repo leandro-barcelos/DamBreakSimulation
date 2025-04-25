@@ -44,4 +44,6 @@ public class ShaderIDs
     public static readonly int PowerLawExponent = Shader.PropertyToID("_PowerLawExponent");
     public static readonly int YieldStress = Shader.PropertyToID("_YieldStress");
     public static readonly int SolidApproximationFactor = Shader.PropertyToID("_SolidApproximationFactor");
+    public static readonly int MarkerTexture = Shader.PropertyToID("_MarkerTexture");
+    public static readonly int MarkerTextureResolution = Shader.PropertyToID("_MarkerTextureResolution");
 }

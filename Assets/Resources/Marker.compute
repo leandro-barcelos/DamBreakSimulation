@@ -1,0 +1,31 @@
+#include "shaderDefs.cginc"
+
+Texture2D<float4> _FluidParticlePositionTexture;
+RWTexture2D<float4> _MarkerTexture;
+
+uint _MarkerTextureResolution;
+float2 _FluidParticleResolution;
+float3 _Min;
+float3 _Max;
+uint _FluidParticleCount;
+
+#pragma kernel CSMain
+
+[numthreads(NUM_THREADS, NUM_THREADS, 1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= uint2(_FluidParticleResolution)))
+        return;
+
+    uint id_1d = id.y * uint(_FluidParticleResolution.x) + id.x;
+
+    if (id_1d >= _FluidParticleCount)
+        return;
+
+    float2 pos = _FluidParticlePositionTexture[id.xy].xz;
+
+    uint x = (pos.x - _Min.x) / (_Max.x - _Min.x) * (_MarkerTextureResolution - 1);
+    uint y = (pos.y - _Min.z) / (_Max.z - _Min.z) * (_MarkerTextureResolution - 1);
+
+    _MarkerTexture[uint2(x, y)] = float4(1.0, 0.0, 0.0, 1.0);
+}

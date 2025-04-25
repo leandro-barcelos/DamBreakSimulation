@@ -48,6 +48,9 @@ public class Simulation : MonoBehaviour
     [Range(0.001f, 5f)] public float timeStep = 1f / 60f;
     public NonNewtonianProperties nonNewtonianProps = new();
 
+    [Header("Export")]
+    public bool exportFlow = false;
+
     [Header("Rendering")]
     public float occlusionRange;
     [Range(0.001f, 100f)] public float particleRadius;
@@ -73,6 +76,8 @@ public class Simulation : MonoBehaviour
     private float _effectiveRadius;
     private float _particleMass;
     private float _dampingCoefficient;
+    // Map
+    private RenderTexture _markerTexture;
 
     // Wall
     private int _wallParticleCount;
@@ -90,7 +95,7 @@ public class Simulation : MonoBehaviour
     private Bounds _bounds;
 
     // Shaders
-    private ComputeShader _bucketShader, _clearShader, _densityShader, _velPosShader, _updateMeshPropertiesShader;
+    private ComputeShader _bucketShader, _clearShader, _densityShader, _velPosShader, _updateMeshPropertiesShader, _markerShader;
     private int _fluidThreadGroups, _wallThreadGroups;
 
     //Map
@@ -129,7 +134,7 @@ public class Simulation : MonoBehaviour
         float alphaD = 0.7f; // Depends on contact stiffness
         _dampingCoefficient = -Mathf.Log(coefficientOfRestitution) /
             (alphaD * Mathf.Sqrt(Mathf.Pow(Mathf.Log(coefficientOfRestitution), 2) +
-            Mathf.Pow(Mathf.PI, 2)));
+        _markerTexture = CreateRenderTexture2D(mapLoader.elevationTexture.width * mapLoader.scale, mapLoader.elevationTexture.height * mapLoader.scale, RenderTextureFormat.ARGBFloat);
     }
 
     void Update()
@@ -141,6 +146,9 @@ public class Simulation : MonoBehaviour
             UpdateVelocityAndPosition(timeStep / 100);
 
         UpdateFluidMeshProperties();
+
+        if (exportFlow)
+            Mark();
 
         if (renderParticles)
             Graphics.DrawMeshInstancedIndirect(_particleMesh, 0, particleMaterial, _bounds, _particleArgsBuffer);
@@ -157,6 +165,16 @@ public class Simulation : MonoBehaviour
         _fluidParticleVelocityTextures[Write].Release();
         _fluidParticleDensityTexture.Release();
         _wallParticlePositionTexture.Release();
+        _markerTexture.Release();
+    }
+
+    void OnApplicationQuit()
+    {
+        if (exportFlow && _markerTexture != null)
+        {
+            ExportRenderTextureToFile(_markerTexture, "FlowMarkerData_" + System.DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss"));
+            Debug.Log("Flow data exported on application quit");
+        }
     }
 
     #endregion
@@ -321,6 +339,7 @@ public class Simulation : MonoBehaviour
         _densityShader = Resources.Load<ComputeShader>("Density");
         _velPosShader = Resources.Load<ComputeShader>("VelPos");
         _updateMeshPropertiesShader = Resources.Load<ComputeShader>("UpdateMeshProperties");
+        _markerShader = Resources.Load<ComputeShader>("Marker");
     }
 
     private void CreateFluidParticleTextures(List<Vector3> positions)
@@ -551,6 +570,21 @@ public class Simulation : MonoBehaviour
         _updateMeshPropertiesShader.Dispatch(1, _wallThreadGroups, _wallThreadGroups, 1);
     }
 
+    private void Mark()
+    {
+        _markerShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
+        _markerShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
+        _markerShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
+        _markerShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
+        _markerShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
+        _markerShader.SetInt(ShaderIDs.MarkerTextureResolution, mapLoader.elevationTexture.width * mapLoader.scale);
+
+        _markerShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
+        _markerShader.SetTexture(0, ShaderIDs.MarkerTexture, _markerTexture);
+
+        _markerShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
+    }
+
     #endregion
 
     #region Texture Helpers
@@ -597,6 +631,44 @@ public class Simulation : MonoBehaviour
                 _clearShader.Dispatch(kernel, threadGroupsX, threadGroupsY, 1);
                 break;
         }
+    }
+
+    private void ExportRenderTextureToFile(RenderTexture rt, string filename)
+    {
+        // Create a temporary texture with the same dimensions
+        Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+
+        // Store the active render texture
+        RenderTexture prevRT = RenderTexture.active;
+
+        // Set the provided RenderTexture as active
+        RenderTexture.active = rt;
+
+        // Copy the RenderTexture content to the temporary texture
+        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+        tex.Apply();
+
+        // Restore the previous active RenderTexture
+        RenderTexture.active = prevRT;
+
+        // Convert the texture to bytes (PNG format)
+        byte[] bytes = tex.EncodeToPNG();
+
+        // Ensure the Exports directory exists
+        string directory = Application.dataPath + "/Exports";
+        if (!System.IO.Directory.Exists(directory))
+        {
+            System.IO.Directory.CreateDirectory(directory);
+        }
+
+        // Write the bytes to a file
+        string path = System.IO.Path.Combine(directory, filename + ".png");
+        System.IO.File.WriteAllBytes(path, bytes);
+
+        // Clean up
+        Destroy(tex);
+
+        Debug.Log($"Exported RenderTexture to: {path}");
     }
 
     #endregion
