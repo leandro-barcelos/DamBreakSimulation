@@ -10,6 +10,7 @@ StructuredBuffer<uint> _Bucket;
 // Parameters
 uint _FluidParticleCount;
 uint _ParticleCount;
+float _RestDensity;
 float _ParticleMass;
 float _EffectiveRadius2;
 float _EffectiveRadius9;
@@ -42,6 +43,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float3 pos_i = _FluidParticlePositionTexture[id.xy].xyz;
     float3 idx_3d = int3((pos_i - _Min) / (_Max - _Min) * (_BucketResolution - 1));
 
+    bool hasNeighbor = false;
+
     float rho = 0.0;
     for (int x_offset=-1; x_offset<=1; x_offset++)
     for (int y_offset=-1; y_offset<=1; y_offset++)
@@ -62,10 +65,15 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                     uint2 j_2D = uint2(j % uint(_FluidParticleResolution.x), j / uint(_FluidParticleResolution.x));
                     pos_j = _FluidParticlePositionTexture[j_2D].xyz;
                     rho += _ParticleMass* W(pos_i - pos_j);
+
+                    hasNeighbor = true;
                 }
             }
         }
     }
 
-    _FluidParticleDensityTexture[id.xy] = rho;
+    if (hasNeighbor)
+        _FluidParticleDensityTexture[id.xy] = rho;
+    else
+        _FluidParticleDensityTexture[id.xy] = _RestDensity;
 }

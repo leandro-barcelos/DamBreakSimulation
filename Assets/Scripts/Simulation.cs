@@ -467,6 +467,7 @@ public class Simulation : MonoBehaviour
         _densityShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
         _densityShader.SetInt(ShaderIDs.ParticleCount, _fluidParticleCount + _wallParticleCount);
         _densityShader.SetVector(ShaderIDs.BucketResolution, (Vector3)_bucketResolution);
+        _densityShader.SetFloat(ShaderIDs.RestDensity, restDensity);
         _densityShader.SetFloat(ShaderIDs.ParticleMass, _particleMass);
         _densityShader.SetFloat(ShaderIDs.EffectiveRadius2, _effectiveRadius * _effectiveRadius);
         _densityShader.SetFloat(ShaderIDs.EffectiveRadius9, Mathf.Pow(_effectiveRadius, 9));
