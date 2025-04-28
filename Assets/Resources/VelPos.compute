@@ -32,10 +32,7 @@ float3 _Max;
 float _MinElevation;
 float _MaxElevation;
 float _Mu;
-int _NonNewtonianModel;
-float _PowerLawExponent;
 float _YieldStress;
-float _SolidApproximationFactor;
 
 float3x3 calculate_strain_rate_tensor(float3 vel_i, float3 vel_j, float3 r_ij) {
     // Calculate strain rate tensor D = (∇v + ∇v^T) / 2
@@ -75,82 +72,26 @@ float compute_D_magnitude(float3x3 D) {
 }
 
 float3x3 calculate_stress_tensor(float3x3 D, float D_mag, float viscosity) {
-    // Different models based on _NonNewtonianModel
     float3x3 tau;
     
-    switch (_NonNewtonianModel) {
-        case MODEL_POWER_LAW: // τ = 2μ|D|^(N-1)D
-            float power_factor = pow(D_mag, _PowerLawExponent - 1.0);
-            for (int i = 0; i < 3; i++) {
-                for (int j = 0; j < 3; j++) {
-                    tau[i][j] = 2.0 * viscosity * power_factor * D[i][j];
-                }
+    if (D_mag < epsilon) 
+    {
+        // Zero strain rate - treat as solid
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                tau[i][j] = 0.0;
             }
-            break;
-            
-        case MODEL_BINGHAM_PLASTIC:
-            if (D_mag < epsilon) {
-                // Zero strain rate - treat as solid
-                for (int i = 0; i < 3; i++) {
-                    for (int j = 0; j < 3; j++) {
-                        tau[i][j] = 0.0;
-                    }
-                }
-            } 
-            else if (D_mag <= _YieldStress / (2.0 * _SolidApproximationFactor * viscosity)) {
-                // Below yield stress - approximation of solid behavior
-                for (int i = 0; i < 3; i++) {
-                    for (int j = 0; j < 3; j++) {
-                        tau[i][j] = 2.0 * _SolidApproximationFactor * viscosity * D[i][j];
-                    }
-                }
-            } 
-            else {
-                // Above yield stress - Bingham model: τ = (τY/|D| + 2μ)D
-                float bingham_factor = _YieldStress / D_mag + 2.0 * viscosity;
-                for (int i = 0; i < 3; i++) {
-                    for (int j = 0; j < 3; j++) {
-                        tau[i][j] = bingham_factor * D[i][j];
-                    }
-                }
+        }
+    }
+    else 
+    {
+        // Above yield stress - Bingham model: τ = (τY/|D| + 2μ)D
+        float bingham_factor = _YieldStress / D_mag + 2.0 * viscosity;
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                tau[i][j] = bingham_factor * D[i][j];
             }
-            break;
-            
-        case MODEL_HERSCHEL_BULKLEY:
-            if (D_mag < epsilon) {
-                // Zero strain rate - treat as solid
-                for (int i = 0; i < 3; i++) {
-                    for (int j = 0; j < 3; j++) {
-                        tau[i][j] = 0.0;
-                    }
-                }
-            } 
-            else if (D_mag <= _YieldStress / (2.0 * _SolidApproximationFactor * viscosity)) {
-                // Below yield stress - approximation of solid behavior
-                for (int i = 0; i < 3; i++) {
-                    for (int j = 0; j < 3; j++) {
-                        tau[i][j] = 2.0 * _SolidApproximationFactor * viscosity * D[i][j];
-                    }
-                }
-            } 
-            else {
-                // Above yield stress - Herschel-Bulkley model: τ = (τY/|D| + 2μ|D|^(N-1))D
-                float hb_factor = _YieldStress / D_mag + 2.0 * viscosity * pow(D_mag, _PowerLawExponent - 1.0);
-                for (int i = 0; i < 3; i++) {
-                    for (int j = 0; j < 3; j++) {
-                        tau[i][j] = hb_factor * D[i][j];
-                    }
-                }
-            }
-            break;
-            
-        default: // Newtonian model: τ = 2μD
-            for (int i = 0; i < 3; i++) {
-                for (int j = 0; j < 3; j++) {
-                    tau[i][j] = 2.0 * viscosity * D[i][j];
-                }
-            }
-            break;
+        }
     }
     
     return tau;
@@ -298,24 +239,21 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                     {
                         f_press += ((p_i + p_j) / (2.0 * rho_j)) * grad_W_press(pos_ij);
 
-                        if (_NonNewtonianModel == MODEL_NEWTONIAN) {
-                            f_vis += ((vel_j - vel_in_i.xyz) / rho_j) * grad_W_vis(pos_ij);
-                        } else {
-                            float dist = length(pos_ij);
-                            if (dist < _EffectiveRadius) {
-                                float3x3 D = calculate_strain_rate_tensor(vel_in_i.xyz, vel_j, pos_ij);
-                                float D_mag = compute_D_magnitude(D);
+                        float dist = length(pos_ij);
+                        if (dist < _EffectiveRadius) 
+                        {
+                            float3x3 D = calculate_strain_rate_tensor(vel_in_i.xyz, vel_j, pos_ij);
+                            float D_mag = compute_D_magnitude(D);
 
-                                float3x3 tau = calculate_stress_tensor(D, D_mag, _Viscosity);
+                            float3x3 tau = calculate_stress_tensor(D, D_mag, _Viscosity);
 
-                                float3 force_contribution = 0.0;
+                            float3 force_contribution = 0.0;
 
-                                force_contribution += tau[0] * normalize(pos_ij)[0];
-                                force_contribution += tau[1] * normalize(pos_ij)[1];
-                                force_contribution += tau[2] * normalize(pos_ij)[2];
+                            force_contribution += tau[0] * normalize(pos_ij)[0];
+                            force_contribution += tau[1] * normalize(pos_ij)[1];
+                            force_contribution += tau[2] * normalize(pos_ij)[2];
 
-                                f_vis += (force_contribution / rho_j) * grad_W_vis(pos_ij);
-                            }
+                            f_vis += (force_contribution / rho_j) * grad_W_vis(pos_ij);
                         }
                         
                     }

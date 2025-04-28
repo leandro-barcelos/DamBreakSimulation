@@ -40,10 +40,7 @@ public class ShaderIDs
     public static readonly int ParticleCount = Shader.PropertyToID("_ParticleCount");
     public static readonly int ColorDensity = Shader.PropertyToID("_ColorDensity");
     public static readonly int Mu = Shader.PropertyToID("_Mu");
-    public static readonly int NonNewtonianModel = Shader.PropertyToID("_NonNewtonianModel");
-    public static readonly int PowerLawExponent = Shader.PropertyToID("_PowerLawExponent");
     public static readonly int YieldStress = Shader.PropertyToID("_YieldStress");
-    public static readonly int SolidApproximationFactor = Shader.PropertyToID("_SolidApproximationFactor");
     public static readonly int MarkerTexture = Shader.PropertyToID("_MarkerTexture");
     public static readonly int MarkerTextureResolution = Shader.PropertyToID("_MarkerTextureResolution");
 }
