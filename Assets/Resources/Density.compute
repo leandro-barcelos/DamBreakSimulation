@@ -43,7 +43,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float3 pos_i = _FluidParticlePositionTexture[id.xy].xyz;
     float3 idx_3d = int3((pos_i - _Min) / (_Max - _Min) * (_BucketResolution - 1));
 
-    bool hasNeighbor = false;
+    int neighborCount = 0;
 
     float rho = 0.0;
     for (int x_offset=-1; x_offset<=1; x_offset++)
@@ -66,13 +66,13 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                     pos_j = _FluidParticlePositionTexture[j_2D].xyz;
                     rho += _ParticleMass* W(pos_i - pos_j);
 
-                    hasNeighbor = true;
+                    neighborCount++;
                 }
             }
         }
     }
 
-    if (hasNeighbor)
+    if (neighborCount > 0)
         _FluidParticleDensityTexture[id.xy] = rho;
     else
         _FluidParticleDensityTexture[id.xy] = _RestDensity;

@@ -258,47 +258,28 @@ void CSMain(uint3 id : SV_DispatchThreadID)
                     float pen_dist = _EffectiveRadius - dist;
 
                     float3 normal = get_surface_normal(pos_i);
-
-                    // First, define boundary zone thickness (could be a parameter)
-                    // As per paper: d_dummy = h (kernel support radius) for current time step
-                    // or d_dummy = 0.5h for half time step
                     float d_dummy = _EffectiveRadius;
+                    float d_soil = dist;
 
-                    // Calculate distance from particle to boundary surface
-                    float d_soil = dist; // Assuming 'dist' is distance to boundary surface
-
-                    // Calculate beta' factor
                     float beta_prime = d_dummy / max(d_soil, epsilon);
 
-                    // Calculate relative velocity (for static wall, v_w = 0)
-                    float3 delta_v_i = -vel_in_i.xyz; // Negative because we're using v_i - v_w and v_w = 0
+                    float3 delta_v_i = -vel_in_i.xyz;
 
-                    // Only apply force if within boundary zone AND moving toward boundary
                     if (pen_dist > epsilon && dot(vel_in_i.xyz, normal) < 0.0)
                     {
-                        // Calculate normal component of relative velocity
                         float3 delta_v_n_i = dot(delta_v_i, normal) * normal;
-                        
-                        // Apply energy dissipation
                         float3 modified_normal_vel = beta_prime * (1.0 - _DampingCoeff) * delta_v_n_i;
-                        
-                        // Calculate tangential component of relative velocity
                         float3 delta_v_s_i = delta_v_i - delta_v_n_i;
                         
-                        // Apply friction for tangential component
                         float f_n_magnitude = length((2.0 * _ParticleMass * modified_normal_vel) / _TimeStep);
                         float f_s_magnitude = length((2.0 * _ParticleMass * delta_v_s_i) / _TimeStep);
                         
                         if (f_s_magnitude > _Mu * f_n_magnitude && f_n_magnitude > epsilon)
-                        {
                             delta_v_s_i *= _Mu * (f_n_magnitude / f_s_magnitude);
-                        }
                         
-                        // Calculate boundary forces
                         float3 f_normal = (2.0 * _ParticleMass * modified_normal_vel) / _TimeStep;
                         float3 f_tangential = (2.0 * _ParticleMass * delta_v_s_i) / _TimeStep;
                         
-                        // Add to boundary force
                         f_bound += f_normal + f_tangential;
                     }
                 }
