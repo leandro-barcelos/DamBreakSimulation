@@ -37,6 +37,7 @@ public class Simulation : MonoBehaviour
     public GameObject tailingArea;
     public GameObject dam;
     public float totalTailingVolume;
+    [Range(0.01f, 20f)] public float initialParticleSpacing = 10;
     [Range(1, 32)] public int maxParticlesPerVoxel;
     [Header("Parameters")]
     [Range(0f, 5000f)] public float viscosity = 750f;
@@ -62,6 +63,10 @@ public class Simulation : MonoBehaviour
 
     [Header("Map Generation")]
     public GameObject mapGameObject;
+
+    [Header("Screenshots")]
+    public bool captureScreenshots = false;
+    public float screenshotInterval = 100f;
 
     #endregion
 
@@ -103,6 +108,10 @@ public class Simulation : MonoBehaviour
 
     private Bounds _simulationBounds;
 
+    // Screenshot variables
+    private float _elapsedSimTime = 0f;
+    private float _nextScreenshotTime = 0f;
+
     #endregion
 
     #region Unity Functions
@@ -120,7 +129,7 @@ public class Simulation : MonoBehaviour
     void Start()
     {
         mapLoader = mapGameObject.GetComponent<LoadMap>();
-        InitCameraOrbit(mapGameObject);
+        InitTopViewCamera(mapGameObject);
 
         InitShaders();
 
@@ -152,8 +161,12 @@ public class Simulation : MonoBehaviour
         BucketGeneration();
         DensityCalculation();
 
+        float stepTime = timeStep / 100;
         for (var i = 0; i < 10; i++)
-            UpdateVelocityAndPosition(timeStep / 100);
+        {
+            UpdateVelocityAndPosition(stepTime);
+            _elapsedSimTime += stepTime;
+        }
 
         UpdateFluidMeshProperties();
 
@@ -162,6 +175,13 @@ public class Simulation : MonoBehaviour
 
         if (renderParticles)
             Graphics.DrawMeshInstancedIndirect(_particleMesh, 0, particleMaterial, _bounds, _particleArgsBuffer);
+
+        // Check if it's time to capture a screenshot
+        if (captureScreenshots && _elapsedSimTime >= _nextScreenshotTime)
+        {
+            CaptureScreenshot();
+            _nextScreenshotTime += screenshotInterval;
+        }
     }
 
     void OnDestroy()
@@ -190,11 +210,62 @@ public class Simulation : MonoBehaviour
     #endregion
 
     #region Initializations
-    private void InitCameraOrbit(GameObject target)
+    private void InitTopViewCamera(GameObject target)
     {
-        var cameraOrbit = Camera.main.AddComponent<CameraOrbit>();
-        cameraOrbit.target = target;
-        cameraOrbit.distance = 6000;
+        // Get the main camera
+        Camera mainCamera = Camera.main;
+        if (mainCamera == null)
+        {
+            Debug.LogError("Main camera not found!");
+            return;
+        }
+
+        // Remove any CameraOrbit component if it exists
+        CameraOrbit orbitComponent = mainCamera.GetComponent<CameraOrbit>();
+        if (orbitComponent != null)
+        {
+            Destroy(orbitComponent);
+        }
+
+        // Get renderer bounds to fit entire map in view
+        Renderer mapRenderer = target.GetComponent<Renderer>();
+        if (mapRenderer == null)
+        {
+            Debug.LogError("Map renderer not found!");
+            return;
+        }
+
+        Bounds bounds = mapRenderer.bounds;
+        float boundsSizeX = bounds.size.x;
+        float boundsSizeZ = bounds.size.z;
+
+        // Position camera above the center of the map
+        Vector3 cameraPosition = bounds.center;
+        // Use the larger dimension to determine height for proper fitting
+        float maxDimension = Mathf.Max(boundsSizeX, boundsSizeZ);
+        // Add some padding for better framing
+        float heightMultiplier = 1.1f;
+        cameraPosition.y = bounds.max.y + maxDimension * heightMultiplier;
+
+        // Set camera position and rotation
+        mainCamera.transform.position = cameraPosition;
+        mainCamera.transform.rotation = Quaternion.Euler(90f, 0f, 0f); // Look straight down
+
+        // Determine if orthographic or perspective works better
+        if (mainCamera.orthographic)
+        {
+            // Set orthographic size to fit the map
+            mainCamera.orthographicSize = Mathf.Max(boundsSizeX, boundsSizeZ) * 0.55f;
+        }
+        else
+        {
+            // Calculate and set proper field of view for perspective camera
+            float distance = cameraPosition.y - bounds.center.y;
+            float requiredFOV = 2f * Mathf.Atan(maxDimension * 0.55f / distance) * Mathf.Rad2Deg;
+            mainCamera.fieldOfView = requiredFOV;
+        }
+
+        Debug.Log($"Camera positioned at {cameraPosition} to view the entire map from above");
     }
 
     private List<Vector3> InitFluidParticles()
@@ -687,6 +758,29 @@ public class Simulation : MonoBehaviour
         Destroy(tex);
 
         Debug.Log($"Exported RenderTexture to: {path}");
+    }
+
+    #endregion
+
+    #region Screenshot Methods
+
+    private void CaptureScreenshot()
+    {
+        // Ensure the Screenshots directory exists
+        string directory = Application.dataPath + "/Screenshots";
+        if (!System.IO.Directory.Exists(directory))
+        {
+            System.IO.Directory.CreateDirectory(directory);
+        }
+
+        // Format the filename with the simulation time
+        string filename = $"Screenshot_T{_elapsedSimTime:F2}s_{System.DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
+        string path = System.IO.Path.Combine(directory, filename + ".png");
+
+        // Take the screenshot
+        ScreenCapture.CaptureScreenshot(path);
+
+        Debug.Log($"Screenshot captured at simulation time: {_elapsedSimTime:F2}s, saved to: {path}");
     }
 
     #endregion
