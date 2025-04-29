@@ -76,4 +76,5 @@ crashlytics-build.properties
 
 # End of https://www.toptal.com/developers/gitignore/api/unity
 
-/[Aa]ssets/[Ss]creenCaptures
+/[Aa]ssets/[Ee]xports
+/[Aa]ssets/[Ss]creenshots
