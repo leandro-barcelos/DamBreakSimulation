@@ -524,6 +524,8 @@ public class Simulation : MonoBehaviour
         _dampingCoefficient = -Mathf.Log(coefficientOfRestitution) /
             (alphaD * Mathf.Sqrt(Mathf.Pow(Mathf.Log(coefficientOfRestitution), 2) +
             Mathf.Pow(Mathf.PI, 2)));
+
+        Debug.Log($"Damping Coefficient = {_dampingCoefficient}");
     }
 
     #endregion
