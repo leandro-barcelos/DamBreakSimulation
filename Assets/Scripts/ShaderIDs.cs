@@ -43,4 +43,5 @@ public class ShaderIDs
     public static readonly int YieldStress = Shader.PropertyToID("_YieldStress");
     public static readonly int MarkerTexture = Shader.PropertyToID("_MarkerTexture");
     public static readonly int MarkerTextureResolution = Shader.PropertyToID("_MarkerTextureResolution");
+    public static readonly int MaxParticlesPerVoxel = Shader.PropertyToID("_MaxParticlesPerVoxel");
 }

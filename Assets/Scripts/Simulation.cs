@@ -8,7 +8,6 @@ public class Simulation : MonoBehaviour
     #region Constants
 
     const int NumThreads = 32;
-    const int MaxParticlesPerVoxel = 16;
     const int Read = 0;
     const int Write = 1;
 
@@ -38,7 +37,7 @@ public class Simulation : MonoBehaviour
     public GameObject tailingArea;
     public GameObject dam;
     public float totalTailingVolume;
-    [Min(0.01f)] public float initialParticleSpacing = 10;
+    [Range(1, 32)] public int maxParticlesPerVoxel;
     [Header("Parameters")]
     [Range(0f, 5000f)] public float viscosity = 750f;
     [Range(0f, 5000f)] public float restDensity = 1400f;
@@ -90,7 +89,6 @@ public class Simulation : MonoBehaviour
     private ComputeBuffer _bucketBuffer;
     private Vector3Int _bucketResolution;
 
-
     // Rendering
     private Mesh _particleMesh;
     private ComputeBuffer _particleMeshPropertiesBuffer, _particleArgsBuffer;
@@ -100,7 +98,7 @@ public class Simulation : MonoBehaviour
     private ComputeShader _bucketShader, _clearShader, _densityShader, _velPosShader, _updateMeshPropertiesShader, _markerShader;
     private int _fluidThreadGroups, _wallThreadGroups;
 
-    //Map
+    // Map
     private LoadMap mapLoader;
 
     private Bounds _simulationBounds;
@@ -444,8 +442,7 @@ public class Simulation : MonoBehaviour
 
     private void InitializeBucketBuffer()
     {
-        // Initialize bucket buffer with maximum possible particles per cell
-        var totalBucketSize = _bucketResolution.x * _bucketResolution.y * _bucketResolution.z * MaxParticlesPerVoxel;
+        var totalBucketSize = _bucketResolution.x * _bucketResolution.y * _bucketResolution.z * maxParticlesPerVoxel;
         _bucketBuffer = new ComputeBuffer(totalBucketSize, sizeof(uint));
     }
 
@@ -472,6 +469,7 @@ public class Simulation : MonoBehaviour
         _bucketShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
         _bucketShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _bucketShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
+        _bucketShader.SetInt(ShaderIDs.MaxParticlesPerVoxel, maxParticlesPerVoxel);
 
         // Clear bucket buffer with particle count as empty marker
         int clearKernel = _bucketShader.FindKernel("ClearBucket");
@@ -514,6 +512,7 @@ public class Simulation : MonoBehaviour
         _densityShader.SetVector(ShaderIDs.FluidParticleResolution, new Vector2(_fluidParticleTextureResolution, _fluidParticleTextureResolution));
         _densityShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _densityShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
+        _densityShader.SetInt(ShaderIDs.MaxParticlesPerVoxel, maxParticlesPerVoxel);
 
         _densityShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
     }
@@ -548,6 +547,7 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetVector(ShaderIDs.WallParticleResolution, new Vector2(_wallParticleTextureResolution, _wallParticleTextureResolution));
         _velPosShader.SetFloat(ShaderIDs.Mu, friction);
         _velPosShader.SetFloat(ShaderIDs.YieldStress, yieldStress);
+        _velPosShader.SetInt(ShaderIDs.MaxParticlesPerVoxel, maxParticlesPerVoxel);
 
         _velPosShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
 

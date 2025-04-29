@@ -8,6 +8,7 @@ Texture2D<float4> _FluidParticlePositionTexture;
 StructuredBuffer<uint> _Bucket;
 
 // Parameters
+uint _MaxParticlesPerVoxel;
 uint _FluidParticleCount;
 uint _ParticleCount;
 float _RestDensity;
@@ -53,8 +54,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         if(all(idx_3d_j >= 0) && all((uint3)idx_3d_j < _BucketResolution))
         {
             uint bkt_j = idx_3d_j.x + idx_3d_j.y * _BucketResolution.x + idx_3d_j.z * _BucketResolution.x * _BucketResolution.y;
-            bkt_j *= MAX_PARTICLES_PER_VOXEL;
-            for (uint j2 = 0; j2<MAX_PARTICLES_PER_VOXEL; j2++){
+            bkt_j *= _MaxParticlesPerVoxel;
+            for (uint j2 = 0; j2<_MaxParticlesPerVoxel; j2++){
                 uint j = _Bucket[bkt_j + j2];
                 if (j == _ParticleCount) break;
 

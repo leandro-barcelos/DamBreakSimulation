@@ -8,6 +8,7 @@ Texture2D<float4> _WallParticlePositionTexture;
 RWStructuredBuffer<uint> _Bucket;
 
 // Parameters
+uint _MaxParticlesPerVoxel;
 float2 _FluidParticleResolution;
 float2 _WallParticleResolution;
 uint3 _BucketResolution;
@@ -34,8 +35,8 @@ void Fluid(uint3 id : SV_DispatchThreadID)
     float3 pos = _FluidParticlePositionTexture[id.xy].xyz;
     float3 idx_3d = int3((pos - _Min) / (_Max - _Min) * (_BucketResolution - 1));
     uint index = idx_3d.x + idx_3d.y * _BucketResolution.x + idx_3d.z * _BucketResolution.x * _BucketResolution.y;
-    index *= MAX_PARTICLES_PER_VOXEL;
-    for (uint j = 0; j < MAX_PARTICLES_PER_VOXEL; j++)
+    index *= _MaxParticlesPerVoxel;
+    for (uint j = 0; j < _MaxParticlesPerVoxel; j++)
     {
         uint original;
         InterlockedCompareExchange(_Bucket[index + j], _ParticleCount, id_1d, original);
@@ -62,8 +63,8 @@ void Wall(uint3 id : SV_DispatchThreadID)
     float3 pos = _WallParticlePositionTexture[id.xy].xyz;
     float3 idx_3d = int3((pos - _Min) / (_Max - _Min) * (_BucketResolution - 1));
     uint index = idx_3d.x + idx_3d.y * _BucketResolution.x + idx_3d.z * _BucketResolution.x * _BucketResolution.y;
-    index *= MAX_PARTICLES_PER_VOXEL;
-    for (uint j = 0; j < MAX_PARTICLES_PER_VOXEL; j++)
+    index *= _MaxParticlesPerVoxel;
+    for (uint j = 0; j < _MaxParticlesPerVoxel; j++)
     {
         uint original;
         InterlockedCompareExchange(_Bucket[index + j], _ParticleCount, id_1d, original);
@@ -81,8 +82,8 @@ void ClearBucket(uint3 id : SV_DispatchThreadID)
         return;
 
     uint idx = id.x + id.y * _BucketResolution.x + id.z * _BucketResolution.x * _BucketResolution.y;
-    idx *= MAX_PARTICLES_PER_VOXEL;
-    for (uint j = 0; j < MAX_PARTICLES_PER_VOXEL; j++)
+    idx *= _MaxParticlesPerVoxel;
+    for (uint j = 0; j < _MaxParticlesPerVoxel; j++)
     {
         _Bucket[idx + j] = _ParticleCount;
     }
