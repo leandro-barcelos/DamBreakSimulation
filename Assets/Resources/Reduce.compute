@@ -1,0 +1,37 @@
+#include "shaderDefs.cginc"
+
+Texture2D<float4> _FluidDistanceTraveled; 
+RWTexture2D<float> _FluidDistanceTraveledMagnitude; 
+
+uint _FluidParticleResolution;
+
+#pragma kernel CSMain
+
+[numthreads(NUM_THREADS, NUM_THREADS,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= uint(_FluidParticleResolution * 0.5)))
+        return;
+
+    uint d = _FluidParticleResolution * 0.5;
+
+    float self = _FluidDistanceTraveledMagnitude[id.xy];
+    float n1   = _FluidDistanceTraveledMagnitude[id.xy + uint2(d, 0)];
+    float n2   = _FluidDistanceTraveledMagnitude[id.xy + uint2(0, d)];
+    float n3   = _FluidDistanceTraveledMagnitude[id.xy + uint2(d, d)];
+
+    float maximum = max(self, max(n1, max(n2, n3)));
+
+    _FluidDistanceTraveledMagnitude[id.xy] = maximum;
+}
+
+#pragma kernel GetMegnitude
+
+[numthreads(NUM_THREADS, NUM_THREADS,1)]
+void GetMegnitude (uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= _FluidParticleResolution))
+        return;
+
+    _FluidDistanceTraveledMagnitude[id.xy] = length(_FluidDistanceTraveled[id.xy]);
+}

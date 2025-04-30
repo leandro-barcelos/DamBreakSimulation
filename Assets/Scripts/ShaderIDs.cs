@@ -44,4 +44,6 @@ public class ShaderIDs
     public static readonly int MarkerTexture = Shader.PropertyToID("_MarkerTexture");
     public static readonly int MarkerTextureResolution = Shader.PropertyToID("_MarkerTextureResolution");
     public static readonly int MaxParticlesPerVoxel = Shader.PropertyToID("_MaxParticlesPerVoxel");
+    public static readonly int FluidDistanceTraveled = Shader.PropertyToID("_FluidDistanceTraveled");
+    public static readonly int FluidDistanceTraveledMagnitude = Shader.PropertyToID("_FluidDistanceTraveledMagnitude");
 }

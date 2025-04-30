@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -29,6 +28,14 @@ public class Simulation : MonoBehaviour
                 sizeof(float) * 4;      // color;
         }
     }
+
+    [System.Serializable]
+    private struct DataSample
+    {
+        public float Time;
+        public float MeanSpeed;
+        public float DistanceTraveled;
+    }
     #endregion
 
     #region Public
@@ -47,6 +54,10 @@ public class Simulation : MonoBehaviour
     [Range(0f, 0.1f)] public float friction = 0.001f;
     [Range(0.001f, 5f)] public float timeStep = 1f / 60f;
     [Range(0.0f, 1000.0f)] public float yieldStress = 0.0f;
+
+    [Header("Data Collection")]
+    public bool collectData = false;
+    public float dataCollectionInterval = 1.0f; // in seconds
 
     [Header("Export")]
     public bool exportFlow = false;
@@ -68,6 +79,9 @@ public class Simulation : MonoBehaviour
     public bool captureScreenshots = false;
     public float screenshotInterval = 100f;
 
+    [Header("Time")]
+    public float elapsedSimTime = 0f;
+
     #endregion
 
     #region Private
@@ -75,7 +89,7 @@ public class Simulation : MonoBehaviour
     // Particle
     private int _fluidParticleCount;
     private RenderTexture[] _fluidParticlePositionTextures, _fluidParticleVelocityTextures;
-    private RenderTexture _fluidParticleDensityTexture;
+    private RenderTexture _fluidParticleDensityTexture, _fluidDistanceTraveled;
     private int _fluidParticleTextureResolution;
     private float _effectiveRadius;
     private float _particleMass;
@@ -100,7 +114,7 @@ public class Simulation : MonoBehaviour
     private Bounds _bounds;
 
     // Shaders
-    private ComputeShader _bucketShader, _clearShader, _densityShader, _velPosShader, _updateMeshPropertiesShader, _markerShader;
+    private ComputeShader _bucketShader, _clearShader, _densityShader, _velPosShader, _updateMeshPropertiesShader, _markerShader, _reduceShader;
     private int _fluidThreadGroups, _wallThreadGroups;
 
     // Map
@@ -109,8 +123,12 @@ public class Simulation : MonoBehaviour
     private Bounds _simulationBounds;
 
     // Screenshot variables
-    private float _elapsedSimTime = 0f;
     private float _nextScreenshotTime = 0f;
+
+    // Data colection
+    private float _nextDataCollectionTime = 0f;
+    private List<DataSample> _collectedData = new List<DataSample>();
+    private Vector3 _initialCenterOfMass = Vector3.zero;
 
     #endregion
 
@@ -165,7 +183,7 @@ public class Simulation : MonoBehaviour
         for (var i = 0; i < 10; i++)
         {
             UpdateVelocityAndPosition(stepTime);
-            _elapsedSimTime += stepTime;
+            elapsedSimTime += stepTime;
         }
 
         UpdateFluidMeshProperties();
@@ -176,8 +194,12 @@ public class Simulation : MonoBehaviour
         if (renderParticles)
             Graphics.DrawMeshInstancedIndirect(_particleMesh, 0, particleMaterial, _bounds, _particleArgsBuffer);
 
+        // Add data collection
+        if (collectData)
+            CalculateAndCollectData();
+
         // Check if it's time to capture a screenshot
-        if (captureScreenshots && _elapsedSimTime >= _nextScreenshotTime)
+        if (captureScreenshots && elapsedSimTime >= _nextScreenshotTime)
         {
             CaptureScreenshot();
             _nextScreenshotTime += screenshotInterval;
@@ -194,6 +216,7 @@ public class Simulation : MonoBehaviour
         _fluidParticlePositionTextures[Write].Release();
         _fluidParticleVelocityTextures[Write].Release();
         _fluidParticleDensityTexture.Release();
+        _fluidDistanceTraveled.Release();
         _wallParticlePositionTexture.Release();
         _markerTexture.Release();
     }
@@ -204,6 +227,13 @@ public class Simulation : MonoBehaviour
         {
             ExportRenderTextureToFile(_markerTexture, "FlowMarkerData_" + System.DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss"));
             Debug.Log("Flow data exported on application quit");
+        }
+
+        // Save any collected data
+        if (collectData && _collectedData.Count > 0)
+        {
+            SaveDataToCSV();
+            Debug.Log("Simulation data exported on application quit");
         }
     }
 
@@ -421,6 +451,7 @@ public class Simulation : MonoBehaviour
         _velPosShader = Resources.Load<ComputeShader>("VelPos");
         _updateMeshPropertiesShader = Resources.Load<ComputeShader>("UpdateMeshProperties");
         _markerShader = Resources.Load<ComputeShader>("Marker");
+        _reduceShader = Resources.Load<ComputeShader>("Reduce");
     }
 
     private void CreateFluidParticleTextures(List<Vector3> positions)
@@ -464,7 +495,7 @@ public class Simulation : MonoBehaviour
         // Create particle velocity textures
         _fluidParticleVelocityTextures = new RenderTexture[2];
 
-        _fluidParticleVelocityTextures[Read] = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.ARGBFloat);
+        _fluidParticleVelocityTextures[Read] = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.ARGBFloat, useMipMap: true);
         _fluidParticleVelocityTextures[Write] = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.ARGBFloat);
 
         // Initialize velocities to zero
@@ -473,6 +504,7 @@ public class Simulation : MonoBehaviour
         // Create density texture
         _fluidParticleDensityTexture = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.RFloat);
 
+        _fluidDistanceTraveled = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.ARGBFloat);
     }
 
     private void CreateWallParticleTextures(List<Vector3> positions)
@@ -599,6 +631,7 @@ public class Simulation : MonoBehaviour
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticleVelocityTexture, _fluidParticleVelocityTextures[Read]);
         _velPosShader.SetTexture(0, ShaderIDs.FluidParticleDensityTexture, _fluidParticleDensityTexture);
         _velPosShader.SetTexture(0, ShaderIDs.ElevationTexture, mapLoader.elevationTexture);
+        _velPosShader.SetTexture(0, ShaderIDs.FluidDistanceTraveled, _fluidDistanceTraveled);
         _velPosShader.SetBuffer(0, ShaderIDs.Bucket, _bucketBuffer);
 
         _velPosShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
@@ -685,13 +718,15 @@ public class Simulation : MonoBehaviour
         (textures[Write], textures[Read]) = (textures[Read], textures[Write]);
     }
 
-    private static RenderTexture CreateRenderTexture2D(int width, int height, RenderTextureFormat format, FilterMode filterMode = FilterMode.Point, TextureWrapMode wrapMode = TextureWrapMode.Clamp)
+    private static RenderTexture CreateRenderTexture2D(int width, int height, RenderTextureFormat format, FilterMode filterMode = FilterMode.Point, TextureWrapMode wrapMode = TextureWrapMode.Clamp, bool useMipMap = false)
     {
         var rt = new RenderTexture(width, height, 0, format)
         {
             enableRandomWrite = true,
             filterMode = filterMode,
-            wrapMode = wrapMode
+            wrapMode = wrapMode,
+            useMipMap = useMipMap,
+            autoGenerateMips = false
         };
         rt.Create();
         return rt;
@@ -776,13 +811,135 @@ public class Simulation : MonoBehaviour
         }
 
         // Format the filename with the simulation time
-        string filename = $"Screenshot_T{_elapsedSimTime:F2}s_{System.DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
+        string filename = $"Screenshot_T{elapsedSimTime:F2}s_{System.DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
         string path = System.IO.Path.Combine(directory, filename + ".png");
 
         // Take the screenshot
         ScreenCapture.CaptureScreenshot(path);
 
-        Debug.Log($"Screenshot captured at simulation time: {_elapsedSimTime:F2}s, saved to: {path}");
+        Debug.Log($"Screenshot captured at simulation time: {elapsedSimTime:F2}s, saved to: {path}");
+    }
+
+    #endregion
+
+    #region Data Colection
+
+    private void CalculateAndCollectData()
+    {
+        if (!collectData || elapsedSimTime < _nextDataCollectionTime)
+            return;
+
+        // Calculate mean velocity using mipmaps
+        float meanSpeed = CalculateMeanSpeed();
+
+        // Calculate center of mass and distance traveled
+        float distanceTraveled = CalculateMaxDistanceTraveled();
+
+        // Store the data
+        _collectedData.Add(new DataSample
+        {
+            Time = elapsedSimTime,
+            MeanSpeed = meanSpeed,
+            DistanceTraveled = distanceTraveled
+        });
+
+        Debug.Log($"Data collected at t={elapsedSimTime:F2}s: Mean Speed={meanSpeed:F4} m/s, Distance={distanceTraveled:F4} m");
+
+        // Schedule next collection time
+        _nextDataCollectionTime = elapsedSimTime + dataCollectionInterval;
+
+        // Save to CSV if needed (you might want to only do this at the end or at specific intervals)
+        if (_collectedData.Count % 10 == 0)
+        {
+            SaveDataToCSV();
+        }
+    }
+
+    private float CalculateMaxDistanceTraveled()
+    {
+        RenderTexture _fluidDistanceTraveledMag = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.RFloat);
+
+        _reduceShader.SetInt(ShaderIDs.FluidParticleResolution, _fluidParticleTextureResolution);
+
+        _reduceShader.SetTexture(1, ShaderIDs.FluidDistanceTraveled, _fluidDistanceTraveled);
+        _reduceShader.SetTexture(1, ShaderIDs.FluidDistanceTraveledMagnitude, _fluidDistanceTraveledMag);
+
+        _reduceShader.Dispatch(1, _fluidThreadGroups, _fluidThreadGroups, 1);
+
+        int reductions = (int)Mathf.Log(_fluidParticleTextureResolution, 2);
+
+        int resolution = _fluidParticleTextureResolution;
+
+        for (var i = 0; i < reductions; i++)
+        {
+            _reduceShader.SetInt(ShaderIDs.FluidParticleResolution, resolution);
+
+            _reduceShader.SetTexture(0, ShaderIDs.FluidDistanceTraveledMagnitude, _fluidDistanceTraveledMag);
+
+            _reduceShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
+
+            resolution /= 2;
+        }
+
+        RenderTexture.active = _fluidDistanceTraveledMag;
+        Texture2D tex = new(1, 1, TextureFormat.RFloat, false);
+        tex.ReadPixels(new Rect(0, 0, 1, 1), 0, 0);
+        tex.Apply();
+        float maxDistance = tex.GetPixel(0, 0).r;
+        RenderTexture.active = null;
+        Destroy(tex);
+
+        _fluidDistanceTraveledMag.Release();
+
+        return maxDistance;
+
+
+    }
+
+    private float CalculateMeanSpeed()
+    {
+        // Use mipmaps to get average velocity magnitude
+        // Generate mipmap for the velocity texture
+        _fluidParticleVelocityTextures[Read].GenerateMips();
+
+        var asyncAction = AsyncGPUReadback.Request(_fluidParticleVelocityTextures[Read], _fluidParticleVelocityTextures[Read].mipmapCount - 1);
+        asyncAction.WaitForCompletion();
+
+        // Extract average color
+        Vector3 meanVelocity = asyncAction.GetData<Vector4>()[0];
+
+        return meanVelocity.magnitude;
+    }
+
+    private void SaveDataToCSV()
+    {
+        if (_collectedData.Count == 0)
+            return;
+
+        // Ensure the Data directory exists
+        string directory = Application.dataPath + "/Data";
+        if (!System.IO.Directory.Exists(directory))
+        {
+            System.IO.Directory.CreateDirectory(directory);
+        }
+
+        // Create filename with timestamp
+        string filename = $"SimulationData_{System.DateTime.Now:yyyy-MM-dd-HH-mm-ss}.csv";
+        string path = System.IO.Path.Combine(directory, filename);
+
+        // Create CSV content
+        System.Text.StringBuilder csv = new System.Text.StringBuilder();
+        csv.AppendLine("Time,MeanSpeed,DistanceTraveled");
+
+        foreach (DataSample sample in _collectedData)
+        {
+            csv.AppendLine($"{sample.Time:F4},{sample.MeanSpeed:F4},{sample.DistanceTraveled:F4}");
+        }
+
+        // Write to file
+        System.IO.File.WriteAllText(path, csv.ToString());
+
+        Debug.Log($"Data saved to CSV: {path}");
     }
 
     #endregion

@@ -5,6 +5,7 @@
 // Buffers
 RWTexture2D<float4> _FluidParticlePositionTextureWrite;
 RWTexture2D<float4> _FluidParticleVelocityTextureWrite;
+RWTexture2D<float4> _FluidDistanceTraveled;
 Texture2D<float4> _FluidParticlePositionTexture;
 Texture2D<float4> _WallParticlePositionTexture;
 Texture2D<float4> _FluidParticleVelocityTexture;
@@ -308,6 +309,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     pos_out_i.y = max(pos_out_i.y, elevation);
 
     pos_out_i = clamp(pos_out_i, float4(_Min, 1.0), float4(_Max, 1.0));
+
+    _FluidDistanceTraveled[id.xy] += float4(pos_out_i.xyz - pos_i, 0.0);
     
     _FluidParticleVelocityTextureWrite[id.xy] = vel_out_i;
     _FluidParticlePositionTextureWrite[id.xy] = pos_out_i;
