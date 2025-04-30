@@ -282,25 +282,25 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float4 vel_out_i = vel_in_i + float4(a_i * _TimeStep, 1.0);
 
     // Maximum allowed velocity to prevent numerical issues
-    const float maxSpeed = 50.0; // Adjust based on your scene scale
+    const float maxSpeed = 15.0; // Adjust based on your scene scale
     float speed = length(vel_out_i.xyz);
 
-    if (speed > maxSpeed || is_isolated)
+    if (speed > maxSpeed)
     {
         // For isolated or high-speed particles, apply stronger damping
         float dampingFactor = is_isolated ? 0.95 : 0.9;
         vel_out_i.xyz *= dampingFactor;
         
-        // If the particle is truly isolated, try to reintegrate it
-        if (is_isolated && rho_i < 0.7 * _RestDensity) {
-            // Apply velocity towards center of simulation to try pulling it back
-            float3 toCenter = (_Min + _Max) * 0.5 - pos_i;
-            float centerDist = length(toCenter);
-            if (centerDist > 0.001) {
-                toCenter = normalize(toCenter);
-                vel_out_i.xyz += toCenter * _TimeStep * 2.0;
-            }
-        }
+        // // If the particle is truly isolated, try to reintegrate it
+        // if (is_isolated && rho_i < 0.7 * _RestDensity) {
+        //     // Apply velocity towards center of simulation to try pulling it back
+        //     float3 toCenter = (_Min + _Max) * 0.5 - pos_i;
+        //     float centerDist = length(toCenter);
+        //     if (centerDist > 0.001) {
+        //         toCenter = normalize(toCenter);
+        //         vel_out_i.xyz += toCenter * _TimeStep * 2.0;
+        //     }
+        // }
     }
 
     float4 pos_out_i = float4(pos_i, 1.0) + _TimeStep * vel_out_i;
