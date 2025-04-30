@@ -857,43 +857,65 @@ public class Simulation : MonoBehaviour
 
     private float CalculateMaxDistanceTraveled()
     {
+        // Create a render texture to hold magnitude values
         RenderTexture _fluidDistanceTraveledMag = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.RFloat);
 
+        // First get the magnitudes of all distance vectors
+        int getMagnitudeKernel = _reduceShader.FindKernel("GetMagnitude");
         _reduceShader.SetInt(ShaderIDs.FluidParticleResolution, _fluidParticleTextureResolution);
+        _reduceShader.SetTexture(getMagnitudeKernel, ShaderIDs.FluidDistanceTraveled, _fluidDistanceTraveled);
+        _reduceShader.SetTexture(getMagnitudeKernel, ShaderIDs.FluidDistanceTraveledMagnitude, _fluidDistanceTraveledMag);
 
-        _reduceShader.SetTexture(1, ShaderIDs.FluidDistanceTraveled, _fluidDistanceTraveled);
-        _reduceShader.SetTexture(1, ShaderIDs.FluidDistanceTraveledMagnitude, _fluidDistanceTraveledMag);
+        int threadsX = Mathf.CeilToInt(_fluidParticleTextureResolution / (float)NumThreads);
+        int threadsY = Mathf.CeilToInt(_fluidParticleTextureResolution / (float)NumThreads);
+        _reduceShader.Dispatch(getMagnitudeKernel, threadsX, threadsY, 1);
 
-        _reduceShader.Dispatch(1, _fluidThreadGroups, _fluidThreadGroups, 1);
+        // Create a temporary texture for ping-pong reduction
+        RenderTexture tempTexture = CreateRenderTexture2D(_fluidParticleTextureResolution, _fluidParticleTextureResolution, RenderTextureFormat.RFloat);
 
-        int reductions = (int)Mathf.Log(_fluidParticleTextureResolution, 2);
+        int maxReduceKernel = _reduceShader.FindKernel("MaxReduce");
 
-        int resolution = _fluidParticleTextureResolution;
+        // Reduce until we reach 1x1
+        int currentSize = _fluidParticleTextureResolution;
+        RenderTexture source = _fluidDistanceTraveledMag;
+        RenderTexture target = tempTexture;
 
-        for (var i = 0; i < reductions; i++)
+        while (currentSize > 1)
         {
-            _reduceShader.SetInt(ShaderIDs.FluidParticleResolution, resolution);
+            int targetSize = Mathf.Max(1, currentSize / 2);
 
-            _reduceShader.SetTexture(0, ShaderIDs.FluidDistanceTraveledMagnitude, _fluidDistanceTraveledMag);
+            // Set parameters
+            _reduceShader.SetInt(ShaderIDs.FluidParticleResolution, currentSize);
+            _reduceShader.SetTexture(maxReduceKernel, ShaderIDs.FluidDistanceTraveledMagnitude, source);
+            Graphics.SetRandomWriteTarget(1, target);
 
-            _reduceShader.Dispatch(0, _fluidThreadGroups, _fluidThreadGroups, 1);
+            int dispatchX = Mathf.CeilToInt(targetSize / (float)NumThreads);
+            int dispatchY = Mathf.CeilToInt(targetSize / (float)NumThreads);
+            _reduceShader.Dispatch(maxReduceKernel, dispatchX, dispatchY, 1);
 
-            resolution /= 2;
+            // Swap buffers for next iteration
+            RenderTexture temp = source;
+            source = target;
+            target = temp;
+
+            // Update size for next iteration
+            currentSize = targetSize;
         }
 
-        RenderTexture.active = _fluidDistanceTraveledMag;
-        Texture2D tex = new(1, 1, TextureFormat.RFloat, false);
+        // Read the final 1x1 pixel result
+        RenderTexture.active = source;
+        Texture2D tex = new Texture2D(1, 1, TextureFormat.RFloat, false);
         tex.ReadPixels(new Rect(0, 0, 1, 1), 0, 0);
         tex.Apply();
         float maxDistance = tex.GetPixel(0, 0).r;
+
+        // Clean up
         RenderTexture.active = null;
         Destroy(tex);
-
         _fluidDistanceTraveledMag.Release();
+        tempTexture.Release();
 
         return maxDistance;
-
-
     }
 
     private float CalculateMeanSpeed()

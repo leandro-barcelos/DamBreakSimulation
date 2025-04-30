@@ -5,30 +5,36 @@ RWTexture2D<float> _FluidDistanceTraveledMagnitude;
 
 uint _FluidParticleResolution;
 
-#pragma kernel CSMain
-
-[numthreads(NUM_THREADS, NUM_THREADS,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+#pragma kernel MaxReduce
+[numthreads(NUM_THREADS, NUM_THREADS, 1)]
+void MaxReduce(uint3 id : SV_DispatchThreadID)
 {
-    if (any(id.xy >= uint(_FluidParticleResolution * 0.5)))
+    uint currentRes = _FluidParticleResolution;
+    uint targetRes = currentRes / 2;
+    
+    // Check bounds
+    if (any(id.xy >= targetRes))
         return;
-
-    uint d = _FluidParticleResolution * 0.5;
-
-    float self = _FluidDistanceTraveledMagnitude[id.xy];
-    float n1   = _FluidDistanceTraveledMagnitude[id.xy + uint2(d, 0)];
-    float n2   = _FluidDistanceTraveledMagnitude[id.xy + uint2(0, d)];
-    float n3   = _FluidDistanceTraveledMagnitude[id.xy + uint2(d, d)];
-
-    float maximum = max(self, max(n1, max(n2, n3)));
-
+    
+    // Calculate stride for reading values
+    uint2 basePos = id.xy * 2;
+    
+    // Read the 4 pixels we're reducing 
+    float v1 = _FluidDistanceTraveledMagnitude[basePos];
+    float v2 = basePos.x + 1 < currentRes ? _FluidDistanceTraveledMagnitude[basePos + uint2(1, 0)] : 0;
+    float v3 = basePos.y + 1 < currentRes ? _FluidDistanceTraveledMagnitude[basePos + uint2(0, 1)] : 0;
+    float v4 = all(basePos + uint2(1, 1) < currentRes) ? _FluidDistanceTraveledMagnitude[basePos + uint2(1, 1)] : 0;
+    
+    // Find maximum
+    float maximum = max(max(v1, v2), max(v3, v4));
+    
+    // Write result to output
     _FluidDistanceTraveledMagnitude[id.xy] = maximum;
 }
 
-#pragma kernel GetMegnitude
-
-[numthreads(NUM_THREADS, NUM_THREADS,1)]
-void GetMegnitude (uint3 id : SV_DispatchThreadID)
+#pragma kernel GetMagnitude
+[numthreads(NUM_THREADS, NUM_THREADS, 1)]
+void GetMagnitude(uint3 id : SV_DispatchThreadID)
 {
     if (any(id.xy >= _FluidParticleResolution))
         return;
