@@ -171,7 +171,7 @@ public class Simulation : MonoBehaviour
         _lastCoefficientOfRestitution = coefficientOfRestitution;
         UpdateDampingCoefficient();
 
-        _markerTexture = CreateRenderTexture2D(mapLoader.elevationTexture.width * mapLoader.scale, mapLoader.elevationTexture.height * mapLoader.scale, RenderTextureFormat.ARGBFloat);
+        _markerTexture = CreateRenderTexture2D((int)mapGameObject.transform.localScale.x, (int)mapGameObject.transform.localScale.x, RenderTextureFormat.ARGBFloat);
     }
 
     void Update()
@@ -701,7 +701,7 @@ public class Simulation : MonoBehaviour
         _markerShader.SetInt(ShaderIDs.FluidParticleCount, _fluidParticleCount);
         _markerShader.SetVector(ShaderIDs.Max, _simulationBounds.max);
         _markerShader.SetVector(ShaderIDs.Min, _simulationBounds.min);
-        _markerShader.SetInt(ShaderIDs.MarkerTextureResolution, mapLoader.elevationTexture.width * mapLoader.scale);
+        _markerShader.SetInt(ShaderIDs.MarkerTextureResolution, (int)mapGameObject.transform.localScale.x);
 
         _markerShader.SetTexture(0, ShaderIDs.FluidParticlePositionTexture, _fluidParticlePositionTextures[Read]);
         _markerShader.SetTexture(0, ShaderIDs.MarkerTexture, _markerTexture);
