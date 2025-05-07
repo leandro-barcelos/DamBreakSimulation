@@ -1,63 +1,40 @@
 <p align="center"><img src="https://socialify.git.ci/leandro-barcelos/SPH-TailingsDamFailure/image?font=Inter&amp;language=1&amp;name=1&amp;owner=1&amp;pattern=Solid&amp;theme=Dark" alt="project-image"></p>
 
+# Modelo de escoamento dos rejeitos de mineração decorrentes do rompimento de barragens baseado na hidrodinâmica de partículas suavizadas
+
+## Sobre o Projeto
+
+Este repositório contém a implementação de um modelo computacional baseado no método da Hidrodinâmica de Partículas Suavizadas (SPH) para simular o fluxo de rejeitos de mineração após o rompimento de barragens. O modelo foi desenvolvido como parte do Trabalho de Conclusão de Curso apresentado à Faculdade de Computação da Universidade Federal de Uberlândia.
+
+### Autor
+
+**Leandro Barcelos Ferreira**
+
+### Orientação
+
+**Prof. Dr. Luiz Gustavo Almeida Martins**
+
+### Instituição
+
+Faculdade de Computação (FACOM)  
+Universidade Federal de Uberlândia (UFU)
+
+### Data de Defesa
+
+[A ser preenchido após a defesa]
+
+### Link para a Monografia
+
+[A ser preenchido após a publicação no repositório da UFU]
+
+## Resumo
+
+Os rompimentos de barragens de rejeitos de mineração são cada vez mais uma fonte de preocupação, provocando sérios danos tanto ambientais quanto sociais. Para mitigar suas consequências, é crucial compreender a dinâmica de propagação dos rejeitos e criar ferramentas de avaliação de risco. Este estudo explora o desenvolvimento de um modelo computacional que utiliza a metodologia da Hidrodinâmica de Partículas Suavizadas (SPH) para simular o fluxo de rejeitos após falhas em barragens, com o objetivo de replicar os padrões observados nos desastres de Mariana e Brumadinho. O trabalho baseia-se na implementação do método SPH com tratamento de fronteiras para topografias complexas, utilizando o modelo digital de elevação (MDE) fornecido pela Missão Topográfica de Radar Embarcado (SRTM), e na representação do comportamento não-newtoniano dos rejeitos. Resultados experimentais validam a eficiência do modelo desenvolvido, resultando em simulações que, mesmo sem alcançar sempre os valores ideais, refletem adequadamente os padrões de fluxo e a distribuição espacial dos rejeitos. A análise do desempenho do algoritmo demonstrou que o método pode ser aplicado em várias situações reais, auxiliando na formulação de planos de contingência mais eficazes.
+
+**Palavras-chave**: Hidrodinâmica de Partículas Suavizadas, Modelo do Fluxo de Rejeitos de Mineração, Fluidos Não-Newtonianos, Simulação do Rompimento de Barragens, Simulação Computacional.
+
 ## Abstract
 
-This repository presents a Smoothed Particle Hydrodynamics (SPH) computational framework for simulating non-Newtonian tailings flows resulting from dam failures. The implementation employs GPU acceleration through compute shaders to efficiently simulate large-scale catastrophic events. The model incorporates complex terrain representation using SRTM elevation data and implements the momentum method for boundary treatment. The constitutive behavior of tailings is represented using a regularized Bingham-plastic model with parameters calibrated against laboratory data. 
+The failures of mining tailings dams represent a growing concern, causing severe environmental and social damage. To minimize their impacts, it is essential to understand the dynamics of tailings propagation and develop tools for risk assessment. This work addresses the development of a computational model based on the Smoothed Particle Hydrodynamics (SPH) methodology for simulating the flow of tailings resulting from dam breaks, aiming to replicate patterns observed in the Mariana and Brumadinho disasters. The study is based on the implementation of the SPH method with boundary treatment for complex topographies using the digital elevation model (DEM) from the Shuttle Radar Topography Mission (SRTM) and the representation of the non-Newtonian behavior of the tailings. The results obtained validated the effectiveness of this model, demonstrating that, even when the optimal values were not fully achieved, the simulations maintained an accurate representation of the flow patterns and the spatial distribution of the waste. The performance analysis of the algorithm revealed that the method can be applied in various real situations, contributing to the development of more effective contingency plans.
 
-The numerical framework has been validated against two catastrophic tailings dam failures: the 2015 Fundão Dam failure in Mariana and the 2019 Córrego do Feijão Dam I failure in Brumadinho, both in Minas Gerais, Brazil. Simulations accurately reproduce the affected areas within 11.07% error for Mariana and 3.12% error for Brumadinho cases, demonstrating the model's suitability for risk assessment applications.
-
-## Research Objectives
-
-This numerical framework addresses several research challenges:
-
-1. Accurate representation of non-Newtonian rheological behavior of mining tailings
-2. Efficient treatment of complex topographical boundaries
-3. High-performance computation of large-scale simulations
-4. Validation against real-world catastrophic events
-
-## Methodology
-
-### SPH Formulation
-
-The model employs a Lagrangian meshless approach where fluid properties at any point are calculated as weighted contributions from neighboring particles using kernel functions. The mathematical formulation includes:
-
-- Conservation equations discretized using the SPH method
-- Regularized Bingham plastic model for non-Newtonian fluid behavior
-- Momentum-based boundary treatment for complex topography
-- Bucket-based linked-cell algorithm for efficient neighborhood searches
-
-### Implementation Framework
-
-The computational implementation utilizes compute shaders to leverage GPU parallelism, with:
-- Particles represented as texels in 2D textures
-- Multi-stage computation pipeline for density, force calculation, and advection
-- Real terrain integration through SRTM digital elevation models
-
-## Results
-
-Quantitative comparison between simulation results and field measurements:
-
-| Parameter | Mariana (Real) | Mariana (Sim) | Error (%) | Brumadinho (Real) | Brumadinho (Sim) | Error (%) |
-|-----------|---------------|---------------|-------|-------------------|------------------|-------|
-| Maximum Extension (km) | 10.34 | 8.86 | -14.33 | 8.58 | 7.10 | -17.19 |
-| Affected Area (km²) | 3.56 | 3.17 | -11.07 | 2.54 | 2.46 | -3.12 |
-
-Velocity profiles and spatiotemporal evolution of the tailings flow are available in the `/results/` directory.
-
-### Visual Comparisons
-
-![Mariana Simulation](./results/images/mariana_comparison.png)
-*Figure 1: Comparison between simulated area (red) and actual affected area (blue) for the Mariana case.*
-
-![Brumadinho Simulation](./results/images/brumadinho_comparison.png)
-*Figure 2: Comparison between simulated area (red) and actual affected area (blue) for the Brumadinho case.*
-
-## Limitations and Future Work
-
-Current limitations include:
-- Memory constraints limiting particle resolution
-- Under-prediction of maximum flow extent
-
-Future development directions:
-- Implementation of a compressed neighborhood data structure
-- Integration of higher-resolution terrain models
+**Keywords**: Smoothed Particle Hydrodynamics, Tailings Dams, Non-Newtonian Fluids, Dam Break, Computational Simulation.
