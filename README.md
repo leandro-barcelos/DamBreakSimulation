@@ -6,26 +6,14 @@
 
 Este repositório contém a implementação de um modelo computacional baseado no método da Hidrodinâmica de Partículas Suavizadas (SPH) para simular o fluxo de rejeitos de mineração após o rompimento de barragens. O modelo foi desenvolvido como parte do Trabalho de Conclusão de Curso apresentado à Faculdade de Computação da Universidade Federal de Uberlândia.
 
-### Autor
+![](https://github.com/leandro-barcelos/SPH-TailingsDamFailure/blob/main/Assets/Recordings/brumadinho.gif)
+![](https://github.com/leandro-barcelos/SPH-TailingsDamFailure/blob/main/Assets/Recordings/mariana.gif)
 
-**Leandro Barcelos Ferreira**
-
-### Orientação
-
-**Prof. Dr. Luiz Gustavo Almeida Martins**
-
-### Instituição
-
-Faculdade de Computação (FACOM)  
-Universidade Federal de Uberlândia (UFU)
-
-### Data de Defesa
-
-[A ser preenchido após a defesa]
-
-### Link para a Monografia
-
-[A ser preenchido após a publicação no repositório da UFU]
+* **Autor:** Leandro Barcelos Ferreira
+* **Orientador:** Prof. Dr. Luiz Gustavo Almeida Martins
+* **Instituição:** Faculdade de Computação (FACOM) - Universidade Federal de Uberlândia (UFU)
+* **Data de Defesa:** 14/05/2025
+* **Link para a Monografia:**  [A ser preenchido após a publicação no repositório da UFU]
 
 ## Resumo
 
