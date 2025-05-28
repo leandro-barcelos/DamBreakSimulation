@@ -13,7 +13,7 @@ Este repositório contém a implementação de um modelo computacional baseado n
 * **Orientador:** Prof. Dr. Luiz Gustavo Almeida Martins
 * **Instituição:** Faculdade de Computação (FACOM) - Universidade Federal de Uberlândia (UFU)
 * **Data de Defesa:** 14/05/2025
-* **Link para a Monografia:**  [A ser preenchido após a publicação no repositório da UFU]
+* [**Link para a Monografia**](https://repositorio.ufu.br/handle/123456789/45905)
 
 ## Resumo
 
